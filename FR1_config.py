@@ -2,29 +2,25 @@
 # Other configuration in the main config file
 
 # ALL SYSTEM2.0 CONFIGURATION OPTIONS
-sys2 = {\
-        'EXPERIMENT_NAME'  : 'FR1',
-        'STIM_TYPE'        : 'NO_STIM',
-        'VERSION_NUM'      : '2.04',
-        'control_pc'       : 1,              # Will be incremented later for other control pc versions.  Set to 0 to turn off control pc processing
-        'heartbeat'        : 1000,            # milliseconds
-        'syncMeasure'      : False,         # If True, sync pulses are sent to the syncbox at the same time as a 'SYNC' messages to the Control PC
-        'syncCount'        : 5,              # number of sync messages before control PC is 'synced'
-        'syncInterval'     : 500,          # milliseconds
-        'is_hardwire'      : True,         # Should be set to 'True' in production code
-        'state_list' : [
-                        'PRACTICE',
-                        'NON-STIM ENCODING',
-                        'RETRIEVAL',
-                        'DISTRACT',
-                        'INSTRUCT',
-                        'COUNTDOWN',
-                        'WAITING',
-                        'WORD',
-                        'ORIENT',
-                        'MIC TEST',
-                     ]
-        }
+
+experiment = 'FR1'
+stim_type = 'NO_STIM'
+version = '3.0'
+control_pc = True
+heartbeat_interval = 1000
+
+state_list = [
+    'PRACTICE',
+    'NON-STIM ENCODING',
+    'RETRIEVAL',
+    'DISTRACT',
+    'INSTRUCT',
+    'COUNTDOWN',
+    'WAITING',
+    'WORD',
+    'ORIENT',
+    'MIC TEST',
+ ]
 
 require_labjack = False
 

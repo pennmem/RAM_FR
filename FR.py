@@ -3,49 +3,49 @@
 # COPYRIGHT AND PERMISSION NOTICE
 # Penn Neural Recording and Stimulation Software
 # Copyright (C) 2015 The Trustees of the University of Pennsylvania. All rights reserved.
-# 
+#
 # SOFTWARE LICENSE
 # The Trustees of the University of Pennsylvania ("Penn") and the
 # Computational Memory Lab ("Developer") of Penn Neural Recording and Stimulation
 # Software ("Software") give recipient ("Recipient") permission to download a
 # single copy of the Software in executable form and use for non-profit academic
 # research purposes only provided that the following conditions are met:
-# 
-# 1)	Recipient may NOT use the Software for any clinical or diagnostic 
-#       purpose, including clinical research other than for the purpose of 
+#
+# 1)	Recipient may NOT use the Software for any clinical or diagnostic
+#       purpose, including clinical research other than for the purpose of
 #       fulfilling Recipient's obligations under the subaward agreement between
 #       Penn and Recipient under Prime Award No. N66001-14-2-4-3 awarded by the
 #       Defense Advanced Research Projects Agency to Penn ("Subaward").
-# 
+#
 # 2)	Recipient may NOT use the Software for any commercial benefit.
-# 
+#
 # 3)	Recipient will not copy the Software, other than to the extent necessary
 #       to fulfill Recipient's obligations under the Subaward.
-# 
+#
 # 4)	Recipient will not sell the Software.
-# 
+#
 # 5)	Recipient will not give the Software to any third party.
-# 
-# 6)	Recipient will provide the Developer with feedback on the use of the 
-#       Software in their research.  Recipient agrees that the Developers and 
-#       Penn are freely permitted to use any information Recipient provides in 
-#       making changes to the Software. All feedback, bug reports and technical 
-#       questions shall be sent to: 
+#
+# 6)	Recipient will provide the Developer with feedback on the use of the
+#       Software in their research.  Recipient agrees that the Developers and
+#       Penn are freely permitted to use any information Recipient provides in
+#       making changes to the Software. All feedback, bug reports and technical
+#       questions shall be sent to:
 #           Dan Rizzuto: drizzuto@sas.upenn.edu
-# 
+#
 # 7)	Any party desiring a license to use the Software for commercial purposes
 #       shall contact:
 #           The Penn Center for Innovation at 215-898-9591.
-# 
+#
 # 8)	Recipient will destroy all copies of the Software at the completion of
-#       its obligations under its Subaward.  
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS, CONTRIBUTORS, AND THE 
-# TRUSTEES OF THE UNIVERSITY OF PENNSYLVANIA "AS IS" AND ANY EXPRESS OR IMPLIED 
-# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO 
-# EVENT SHALL THE COPYRIGHT OWNER, CONTRIBUTORS OR THE TRUSTEES OF THE 
-# UNIVERSITY OF PENNSYLVANIA BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+#       its obligations under its Subaward.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS, CONTRIBUTORS, AND THE
+# TRUSTEES OF THE UNIVERSITY OF PENNSYLVANIA "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+# EVENT SHALL THE COPYRIGHT OWNER, CONTRIBUTORS OR THE TRUSTEES OF THE
+# UNIVERSITY OF PENNSYLVANIA BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
 # SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
 # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
 # BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
@@ -63,8 +63,7 @@ import sys
 import shutil
 import unicodedata
 import playIntro
-from RAMControl import RAMControl
-from RAMControl import RAMCallbacks
+from RAMControl import ram_control
 
 # Set the current version
 # TODO: Update the version for System 2.0 pyepl changes
@@ -118,12 +117,12 @@ class FRExperiment:
         self.exp, self.config = \
             exp, config
         self.subject = exp.getOptions().get('subject')
-        self.experiment_name = config.sys2['EXPERIMENT_NAME']
+        self.experiment_name = config.experiment
         self.video = video
         self.clock = clock
         self.wp = CustomTextPool(self.config.wp)
 
-    def _show_prepare_mesage(self):
+    def _show_prepare_message(self):
         """
         Shows "Preparing trials in..."
         """
@@ -244,7 +243,7 @@ then delete the subject folder in:
         """
         :return: Whether or not this is a stim session
         """
-        stim_type = self.config.sys2['STIM_TYPE']
+        stim_type = self.config.stim_type
         if stim_type == 'CLOSED_STIM':
             return True
         elif stim_type == 'NO_STIM':
@@ -327,7 +326,7 @@ then delete the subject folder in:
         """
         Prepares the words for the practice list
         """
-        practice_words = [line.strip() for line in 
+        practice_words = [line.strip() for line in
                           codecs.open(self.config.practice_wordList % self.config.LANGUAGE,
                                       encoding='utf-8').readlines()]
         practice_lists = []
@@ -460,7 +459,7 @@ then delete the subject folder in:
         """
         state = self.exp.restoreState()
         return state.session_started
-    
+
     def is_experiment_started(self):
         """
         :return: True if experiment has previously been started
@@ -482,7 +481,7 @@ then delete the subject folder in:
             self._write_single_lst_file(practice_list, 'p.lst')
             for list_i, words in enumerate(lists):
                 self._write_single_lst_file([word.name for word in words], '%d.lst' % list_i)
-    
+
     def _write_single_lst_file(self, words, label):
         """
         Writes a single .lst file to the current session folder
@@ -492,7 +491,7 @@ then delete the subject folder in:
         list_file = self.exp.session.createFile(label)
         list_file.write('\n'.join([Utils.remove_accents(word) for word in words]))
         list_file.close()
-    
+
     def init_experiment(self):
         """
         Initializes the experiment, sets up the state so that lists can be run
@@ -508,7 +507,7 @@ then delete the subject folder in:
 
         # Notify the user that we're preparing the trials
         # TODO: MOVE TO VIEW
-        self._show_prepare_mesage()
+        self._show_prepare_message()
 
         # Make the word lists
         (session_lists, session_stim, ) = self._prepare_all_sessions_lists()
@@ -516,7 +515,7 @@ then delete the subject folder in:
 
         # Write out the .lst files
         self._write_lst_files(session_lists, practice_lists)
-        
+
         # Save out the state
         state = self.exp.restoreState()
         self.exp.saveState(state,
@@ -542,16 +541,16 @@ then delete the subject folder in:
         Gets the type of stimulation for the given session
         :return: type of stimulation
         """
-        return 'NO_RECORD' if self.config.sys2['EXPERIMENT_NAME'] == 'FR0' else\
-               'NO_STIM' if self.config.sys2['EXPERIMENT_NAME'] == 'FR1' else\
-               'OPEN_STIM' if self.config.sys2['EXPERIMENT_NAME'] == 'FR2' else\
-               'CLOSED_STIM' if self.config.sys2['EXPERIMENT_NAME'] == 'FR3' else\
+        return 'NO_RECORD' if self.config.experiment == 'FR0' else\
+               'NO_STIM' if self.config.experiment == 'FR1' else\
+               'OPEN_STIM' if self.config.experiment == 'FR2' else\
+               'CLOSED_STIM' if self.config.experiment == 'FR3' else\
                'UNKNOWN'
 
 
 class FRExperimentRunner:
 
-    def __init__(self, fr_experiment, clock, log, mathlog, video, audio, callbacks):
+    def __init__(self, fr_experiment, clock, log, mathlog, video, audio):
         self.fr_experiment = fr_experiment
         self.config = fr_experiment.config
         self.clock = clock
@@ -559,7 +558,6 @@ class FRExperimentRunner:
         self.mathlog = mathlog
         self.video = video
         self.audio = audio
-        self.callbacks = callbacks
         self.start_beep = CustomBeep(self.config.startBeepFreq,
                                self.config.startBeepDur,
                                self.config.startBeepRiseFall)
@@ -598,7 +596,7 @@ class FRExperimentRunner:
             return self.choose_yes_or_no(
                 'Practice list already ran.\nPress Y to run again\nPress N to skip'
             )
-        elif self.config.sys2['EXPERIMENT_NAME'] == 'FR1':
+        elif self.config.experiment == 'FR1':
             return self.choose_yes_or_no(
                 'Would you like to run the practice list?\nPress Y to continue\nPress N to skip to first list'
             )
@@ -613,7 +611,7 @@ class FRExperimentRunner:
             'Running %s in session %d of %s\n(%s).\n Press Y to continue, N to quit' %
             (subj,
              state.sessionNum + 1,
-             self.config.sys2['EXPERIMENT_NAME'],
+             self.config.experiment,
              state.language))
 
     def _send_state_message(self, state, value):
@@ -622,30 +620,24 @@ class FRExperimentRunner:
         :param state: 'PRACTICE', 'ENCODING', 'WORD'...
         :param value: True/False
         """
-        if state not in self.config.sys2['state_list']:
+        if state not in self.config.state_list:
             raise Exception('Improper state %s not in list of states' % state)
-        self._send_event('STATE', {'name': state, 'value': value})
+        self._send_event('STATE', state=state, value=value)
 
     def _send_trial_message(self, trial_num):
         """
         Sends message with TRIAL information to control pc
         :param trial_num: 1, 2, ...
         """
-        self._send_event('TRIAL', trial_num)
-    
-    def _send_sync_np(self, n_syncs=1, delay=0, jitter=0):
-        for _ in range(n_syncs):
-            self._send_event('SYNCNP')
-            self.clock.delay(delay, jitter)
-            self.clock.wait()
+        self._send_event('TRIAL', trial=trial_num)
 
-    def _send_event(self, *args):
+    def _send_event(self, type, *args, **kwargs):
         """
         Sends an arbitrary event
         :param args: Inputs to RAMControl.sendEvent()
         """
-        if self.config.sys2['control_pc']:
-            RAMControl.getInstance().sendEvent(RAMControl.getSystemTimeInMillis(), *args)
+        if self.config.control_pc:
+            ram_control.send(ram_control.build_message(type, *args, **kwargs))
 
     def _show_message_from_file(self, filename):
         """
@@ -937,21 +929,23 @@ class FRExperimentRunner:
                 state.session_started = False
                 self.fr_experiment.exp.saveState(state)
                 waitForAnyKey(self.clock, Text('Session skipped\nRestart RAM_%s to run next session' %
-                                               self.config.sys2['EXPERIMENT_NAME']))
+                                               self.config.experiment))
                 return True
         return False
+
+    def resync_callback(self):
+        flashStimulus(Text("Syncing..."), 500)
 
     def _resynchronize(self, show_syncing):
         """
         Performs a resynchronization (christian's algorithm)
         (to be run before each list)
         """
-        if self.config.sys2['control_pc']:
-            control = RAMControl.getInstance()
+        if self.config.control_pc:
             if show_syncing:
-                control.alignClocks(self.callbacks.resync_callback, self.clock)
+                ram_control.align_clocks(callback=self.resync_callback)
             else:
-                control.alignClocks(lambda *_: None , self.clock)
+                ram_control.align_clocks()
 
     def _run_all_lists(self, state):
         """
@@ -963,8 +957,6 @@ class FRExperimentRunner:
         while state.trialNum < len(lists):
             this_list = lists[state.trialNum]
             is_stim = is_stims[state.trialNum]
-            # Sync with NP 10 more times over 2.5 secs
-            self._send_sync_np(5, 500, 100)
             self._run_list([word.name for word in this_list], state, is_stim)
             state.trialNum += 1
             self.fr_experiment.exp.saveState(state)
@@ -1003,9 +995,6 @@ class FRExperimentRunner:
         # Clear the screen
         self.video.clear('black')
 
-        # Sync to the neuroport 20 times over (approximately) 10 seconds
-        self._send_sync_np(20, 500, 100)
-
         if not self._check_sess_num(state):
             exit(1)
 
@@ -1020,7 +1009,7 @@ class FRExperimentRunner:
 
         # Reset the list number on the control PC to 0
         self._send_trial_message(-1)
-        self._send_event('SESSION', {'session_number': state.sessionNum + 1, 'session_type': stim_type})
+        self._send_event('SESSION', session=state.sessionNum + 1, session_type=stim_type)
 
         self._send_state_message('MIC TEST', True)
         self.log_message('MIC_TEST')
@@ -1061,14 +1050,14 @@ def cleanupRAMControl():
     Cleanup anything related to the Control PC
     Close connections, terminate threads.
     """
-    control = RAMControl.getInstance()
-    control.stopHeartbeatPoll()
-    control.disconnect()
-
+    ram_control.disconnect()
+    print "trying to join"
+    ram_control.join()
+    print "EXITING !!!!!!!!"
 
 def exit(num):
-    """ 
-    Override sys.exit since Python does not exit until all threads have exited 
+    """
+    Override sys.exit since Python does not exit until all threads have exited
     """
     try:
         cleanupRAMControl()
@@ -1076,31 +1065,30 @@ def exit(num):
         sys.exit(num)
 
 
-def connect_to_control_pc(exp, config, state, video, callbacks):
+def connect_to_control_pc(subject, session, config):
     """
     establish connection to control PC
     """
-    if not config['control_pc']:
+    if not config.control_pc:
         return
-    clock = PresentationClock()
-    control = RAMControl.getInstance()
+    video = VideoTrack.lastInstance()
     video.clear('black')
-    if control.readyControlPC(clock,
-                              callbacks,
-                              config,
-                              exp.getOptions().get('subject'),
-                              state.sessionNum):
+
+    ram_control.configure(config.experiment, config.version, session, config.stim_type, subject, config.state_list)
+    clock = PresentationClock()
+    if not ram_control.initiate_connection():
         waitForAnyKey(clock,
                       Text("CANNOT SYNC TO CONTROL PC\nCheck connections and restart the experiment",
                            size=.05))
         exit(1)
-    exp.saveState(state, session_started=True)
 
 
 def run():
     """
     The main function that runs the experiment
     """
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
     checkVersion(MIN_PYEPL_VERSION)
 
     # Start PyEPL, parse command line options
@@ -1110,24 +1098,26 @@ def run():
 
     # Users can quit with escape-F1
     exp.setBreak()
+    ram_control.add_message_callbacks(EXIT=exit)
 
     # Get config
     config = exp.getConfig()
 
     if exp.restoreState():
-        sessionNum = exp.restoreState().sessionNum
+        session = exp.restoreState().sessionNum
     else:
-        sessionNum = 0
-    
+        session = 0
+
     # Have to set session before creating tracks
-    exp.setSession(sessionNum)
+    exp.setSession(session)
+    subject =  exp.getOptions().get('subject')
 
     # Set up tracks
     video = VideoTrack('video')
     clock = PresentationClock()
 
-    # Set up sys2 callbacks
-    callbacks = RAMCallbacks(config, clock, video)
+
+    connect_to_control_pc(subject, session+1, config)
 
     fr_experiment = FRExperiment(exp, config, video, clock)
 
@@ -1147,12 +1137,10 @@ def run():
                                            mathlog,
                                            video,
                                            audio,
-                                           callbacks)
+                                           )
 
     if experiment_runner.should_skip_session(state):
         return
-
-    connect_to_control_pc(exp, config.sys2, state, video, callbacks)
 
     experiment_runner.run_session(keyboard)
 
