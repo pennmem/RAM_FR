@@ -55,7 +55,7 @@
 
 from extendedPyepl import *
 
-# other modules
+import logging
 import codecs  # FOR READING UNICODE
 import random
 import os
@@ -63,6 +63,7 @@ import sys
 import shutil
 import unicodedata
 import playIntro
+from log import setup_logging
 from RAMControl import ram_control
 
 # Set the current version
@@ -1087,8 +1088,7 @@ def run():
     """
     The main function that runs the experiment
     """
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
+    setup_logging(level=logging.DEBUG)
     checkVersion(MIN_PYEPL_VERSION)
 
     # Start PyEPL, parse command line options
