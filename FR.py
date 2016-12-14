@@ -64,7 +64,7 @@ import shutil
 import unicodedata
 import playIntro
 from log import setup_logging
-from RAMControl import ram_control
+from RAMControl import RAMControl
 
 # Set the current version
 # TODO: Update the version for System 2.0 pyepl changes
@@ -1098,7 +1098,7 @@ def run():
 
     # Users can quit with escape-F1
     exp.setBreak()
-    ram_control.add_message_callbacks(EXIT=exit)
+    RAMControl.instance().register_handler("EXIT", exit)
 
     # Get config
     config = exp.getConfig()
