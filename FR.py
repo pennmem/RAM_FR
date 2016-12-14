@@ -66,6 +66,8 @@ import playIntro
 from log import setup_logging
 from RAMControl import RAMControl
 
+ram_control = RAMControl.instance()
+
 # Set the current version
 # TODO: Update the version for System 2.0 pyepl changes
 MIN_PYEPL_VERSION = '1.0.0'
