@@ -1053,10 +1053,7 @@ def cleanupRAMControl():
     Cleanup anything related to the Control PC
     Close connections, terminate threads.
     """
-    ram_control.disconnect()
-    print "trying to join"
-    ram_control.join()
-    print "EXITING !!!!!!!!"
+
 
 def exit(num):
     """
@@ -1085,6 +1082,9 @@ def connect_to_control_pc(subject, session, config):
                            size=.05))
         exit(1)
 
+    cb = lambda: flashStimulus(Text("Waiting for start from control PC..."))
+    ram_control.wait_for_start_message(poll_callback=cb)
+
 
 def run():
     """
@@ -1112,14 +1112,13 @@ def run():
 
     # Have to set session before creating tracks
     exp.setSession(session)
-    subject =  exp.getOptions().get('subject')
+    subject = exp.getOptions().get('subject')
 
     # Set up tracks
     video = VideoTrack('video')
     clock = PresentationClock()
 
-
-    connect_to_control_pc(subject, session+1, config)
+    connect_to_control_pc(subject, session + 1, config)
 
     fr_experiment = FRExperiment(exp, config, video, clock)
 
@@ -1147,6 +1146,5 @@ def run():
     experiment_runner.run_session(keyboard)
 
 
-# only do this if the experiment is run as a stand-alone program (not imported as a library)
 if __name__ == "__main__":
     run()
