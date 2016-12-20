@@ -1103,6 +1103,7 @@ def run():
     # Users can quit with escape-F1
     exp.setBreak()
     RAMControl.instance().register_handler("EXIT", exit)
+    RAMControl.instance().socket.log_path = exp.session.fullPath()
 
     # Get config
     config = exp.getConfig()
