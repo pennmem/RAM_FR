@@ -65,6 +65,7 @@ import unicodedata
 import playIntro
 from log import setup_logging
 from RAMControl import RAMControl
+from messages import WordMessage
 
 ram_control = RAMControl.instance()
 
@@ -880,6 +881,7 @@ class FRExperimentRunner:
                                                                     duration=self.config.wordDuration,
                                                                     updateCallback=self._on_word_update)
         # Log that we showed the word
+        ram_control.send(WordMessage(word))
         if not is_practice:
             self.log_message(u'WORD\t%s\t%s\t%d\t%s' %
                              ('text', Utils.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
