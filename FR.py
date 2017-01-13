@@ -54,6 +54,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 from extendedPyepl import *
+from pyepl import timing
 
 import logging
 import codecs  # FOR READING UNICODE
@@ -640,6 +641,9 @@ class FRExperimentRunner:
         Sends an arbitrary event
         :param args: Inputs to RAMControl.sendEvent()
         """
+        if 'timestamp' not in kwargs:
+            kwargs['timestamp'] = timing.now()
+
         if self.config.control_pc:
             ram_control.send(ram_control.build_message(type, *args, **kwargs))
 
@@ -1027,6 +1031,9 @@ class FRExperimentRunner:
             self._run_practice_list(state)
             self._resynchronize(True)
             state = self.fr_experiment.exp.restoreState()
+        
+        self.fr_experiment.exp.saveState(state, session_started=True)
+        state = self.fr_experiment.exp.restoreState()
 
         self._run_all_lists(state)
 
@@ -1121,7 +1128,6 @@ def run():
     video = VideoTrack('video')
     clock = PresentationClock()
 
-    connect_to_control_pc(subject, session + 1, config)
 
     fr_experiment = FRExperiment(exp, config, video, clock)
 
@@ -1145,6 +1151,8 @@ def run():
 
     if experiment_runner.should_skip_session(state):
         return
+    
+    connect_to_control_pc(subject, session, config)
 
     experiment_runner.run_session(keyboard)
 
