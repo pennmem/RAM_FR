@@ -110,8 +110,7 @@ class Utils:
 
 
 class FRExperiment:
-
-    def __init__(self, exp, config, video, clock,):
+    def __init__(self, exp, config, video, clock):
         """
         Initialize the data for the experiment.
         Runs the prepare function, sets up the experiment state
@@ -619,7 +618,7 @@ class FRExperimentRunner:
              self.config.experiment,
              state.language))
 
-    def _send_state_message(self, state, value):
+    def _send_state_message(self, state, value, meta=None):
         """
         Sends message with STATE information to control pc
         :param state: 'PRACTICE', 'ENCODING', 'WORD'...
@@ -627,7 +626,7 @@ class FRExperimentRunner:
         """
         if state not in self.config.state_list:
             raise Exception('Improper state %s not in list of states' % state)
-        self._send_event('STATE', state=state, value=value)
+        self._send_event('STATE', state=state, value=value, meta=meta)
 
     def _send_trial_message(self, trial_num):
         """
@@ -912,7 +911,8 @@ class FRExperimentRunner:
                            maxProbs=self.config.MATH_maxProbs,
                            plusAndMinus=self.config.MATH_plusAndMinus,
                            minDuration=self.config.MATH_minDuration,
-                           textSize=self.config.MATH_textSize)
+                           textSize=self.config.MATH_textSize,
+                           callback=ram_control.send_math_message)
 
         self._send_state_message('DISTRACT', False)
         self.log_message('DISTRACT_END')
