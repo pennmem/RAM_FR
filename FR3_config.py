@@ -7,6 +7,7 @@ stim_type = 'CLOSED_STIM'
 version = '3.0'
 control_pc = True
 heartbeat_interval = 1000
+
 state_list = [ 
     'PRACTICE',
     'STIM ENCODING',

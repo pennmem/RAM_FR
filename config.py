@@ -5,7 +5,7 @@
 LANGUAGE='EN'
 
 EXPERIMENT_NAME = 'FR1'
-VERSION_NUM = '2.04'
+VERSION_NUM = '3.00'
 
 # NEW IN VERSION 1.02
 require_labjack = True
