@@ -534,8 +534,8 @@ then delete the subject folder in:
                            language='spanish' if self.config.LANGUAGE == 'SP' else 'english',
                            LANG=self.config.LANGUAGE)
 
-        self._show_making_stim_forms()
-        self.make_stim_forms()
+        #self._show_making_stim_forms()
+        #self.make_stim_forms()
 
         self.exp.setSession(0)
         return self.exp.restoreState()
