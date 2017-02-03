@@ -56,7 +56,6 @@
 from extendedPyepl import *
 from pyepl import timing
 
-import logging
 import codecs  # FOR READING UNICODE
 import random
 import os
@@ -64,7 +63,6 @@ import sys
 import shutil
 import unicodedata
 import playIntro
-from log import setup_logging
 from RAMControl import RAMControl
 from messages import WordMessage
 
@@ -1099,7 +1097,6 @@ def run():
     """
     The main function that runs the experiment
     """
-    setup_logging(level=logging.DEBUG)
     checkVersion(MIN_PYEPL_VERSION)
 
     # Start PyEPL, parse command line options
