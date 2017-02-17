@@ -4,7 +4,7 @@
 # ALL SYSTEM2.0 CONFIGURATION OPTIONS
 experiment = 'FR3'
 stim_type = 'CLOSED_STIM'
-version = '3.0'
+version = '3.0.0'
 control_pc = True
 heartbeat_interval = 1000
 
