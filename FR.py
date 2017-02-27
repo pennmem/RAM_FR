@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # COPYRIGHT AND PERMISSION NOTICE
 # Penn Neural Recording and Stimulation Software
 # Copyright (C) 2015 The Trustees of the University of Pennsylvania. All rights reserved.
@@ -53,7 +51,6 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from extendedPyepl import *
 from pyepl import timing
 
 import codecs  # FOR READING UNICODE
@@ -63,8 +60,10 @@ import sys
 import shutil
 import unicodedata
 import playIntro
-from RAMControl import RAMControl
-from messages import WordMessage
+
+from ramcontrol.extendedPyepl import *
+from ramcontrol.RAMControl import RAMControl
+from ramcontrol.messages import WordMessage
 
 ram_control = RAMControl.instance()
 
