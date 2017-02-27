@@ -53,6 +53,7 @@
 
 from pyepl import timing
 
+import json
 import codecs  # FOR READING UNICODE
 import random
 import os
@@ -148,7 +149,7 @@ class FRExperiment(object):
         """
         config = self.config
         if config.LANGUAGE != 'EN' and config.LANGUAGE != 'SP':
-            print '\nERROR:\nLanguage must be set to "EN" or "SP"'
+            print('\nERROR:\nLanguage must be set to "EN" or "SP"')
             sys.exit(1)
 
         # make the list of files from the config vars
@@ -162,7 +163,7 @@ class FRExperiment(object):
 
         for f in files:
             if not os.path.exists(f):
-                print "\nERROR:\nPath/File does not exist: %s\n\nPlease verify the config.\n" % f
+                print("\nERROR:\nPath/File does not exist: %s\n\nPlease verify the config.\n" % f)
                 sys.exit(1)
 
     def get_stim_session_sources(self):
@@ -358,7 +359,7 @@ class FRExperiment(object):
         :return: state object
         """
 
-        if self.is_experiment_started():
+        if self.experiment_started:
             raise Exception('Cannot prepare trials with an in progress session!')
 
         util.seed_rng(self.exp.getOptions().get('subject'))
@@ -422,7 +423,11 @@ class FRExperimentRunner(object):
             self.config.stopBeepFreq,
             self.config.stopBeepDur,
             self.config.stopBeepRiseFall)
+
+        # A word is on the screen
         self._on_screen = True
+
+        self._offscreen_callback = None
 
     def log_message(self, message, time=None):
         """
@@ -695,17 +700,19 @@ class FRExperimentRunner(object):
 
     def on_word_update(self, *args):
         self.send_state_message('WORD', self._on_screen)
-        if self._offscreen_callback and not self._on_screen:
+        if self._offscreen_callback is not None and not self._on_screen:
             self._offscreen_callback()
         self._on_screen = not self._on_screen
 
-    def present_word(self, word, word_i, is_stim=False, is_practice=False, offscreen_callback=None):
-        """
-        Presents a single word to the subject
+    def present_word(self, word, word_i, is_stim=False, is_practice=False,
+                     offscreen_callback=None):
+        """Presents a single word to the subject
+
         :param word: the wordpool object of the word to present
         :param word_i: the serial position of the word in the list
         :param is_stim: Whether or not this is a (potentially) stimulated word
         :param is_practice: Whether this is a practice list
+
         """
         self._offscreen_callback = offscreen_callback
 
@@ -762,7 +769,7 @@ class FRExperimentRunner(object):
         Check if session should be skipped
         :return: True if session is skipped, False otherwise
         """
-        if self.experiment.session_started():
+        if self.experiment.session_started:
             bc = ButtonChooser(Key('SPACE') & Key('RETURN'), Key('ESCAPE'))
             self.video.clear('black')
             (_, button, timestamp) = Text(
@@ -845,7 +852,7 @@ class FRExperimentRunner(object):
         self.video.clear('black')
 
         if not self.check_sess_num(state):
-            exit(1)
+            sys.exit(1)
 
         self.video.clear('black')
 
@@ -897,23 +904,6 @@ class FRExperimentRunner(object):
         return state.sessionNum >= len(state.sessionLists)
 
 
-def cleanupRAMControl():
-    """
-    Cleanup anything related to the Control PC
-    Close connections, terminate threads.
-    """
-
-
-def exit(num):
-    """
-    Override sys.exit since Python does not exit until all threads have exited
-    """
-    try:
-        cleanupRAMControl()
-    finally:
-        sys.exit(num)
-
-
 def connect_to_control_pc(subject, session, config):
     """
     establish connection to control PC
@@ -929,7 +919,7 @@ def connect_to_control_pc(subject, session, config):
         waitForAnyKey(clock,
                       Text("CANNOT SYNC TO CONTROL PC\nCheck connections and restart the experiment",
                            size=.05))
-        exit(1)
+        sys.exit(1)
 
     cb = lambda: flashStimulus(Text("Waiting for start from control PC..."))
     ram_control.wait_for_start_message(poll_callback=cb)
@@ -946,7 +936,7 @@ def run():
 
     # Users can quit with escape-F1
     exp.setBreak()
-    RAMControl.instance().register_handler("EXIT", exit)
+    RAMControl.instance().register_handler("EXIT", sys.exit)
     RAMControl.instance().socket.log_path = exp.session.fullPath()
 
     # Get config
@@ -967,7 +957,7 @@ def run():
 
     experiment = FRExperiment(exp, config, video, clock)
 
-    if not experiment.experiment_started():
+    if not experiment.experiment_started:
         state = experiment.init_experiment()
     else:
         state = exp.restoreState()
@@ -977,18 +967,17 @@ def run():
     audio = CustomAudioTrack('audio')
     keyboard = KeyTrack('keyboard')
 
-    experiment_runner = FRExperimentRunner(experiment,
-                                           clock,
-                                           log,
-                                           mathlog,
-                                           video,
-                                           audio,
-                                           )
+    experiment_runner = FRExperimentRunner(experiment, clock, log, mathlog,
+                                           video, audio)
 
     if experiment_runner.should_skip_session(state):
         return
-    
-    connect_to_control_pc(subject, session, config)
+
+    ram_config_env = json.loads(os.environ["RAM_CONFIG"])
+    if not ram_config_env["no_host"]:
+        connect_to_control_pc(subject, session, config)
+    else:
+        print("***** PROCEEDING WITHOUT CONNECTING TO HOST PC! *****")
 
     experiment_runner.run_session(keyboard)
 
