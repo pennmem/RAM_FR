@@ -616,34 +616,34 @@ class FRExperimentRunner(object):
         # ENCODING
 
         for word_i, word in enumerate(word_list[:-1]):
-            self._present_word(word, word_i, is_stim, is_practice)
+            self.present_word(word, word_i, is_stim, is_practice)
 
         # Last word has a callback so it has to be done separately
-        self._present_word(word_list[-1], len(word_list) - 1, is_stim, is_practice,
-                           offscreen_callback=lambda *args: self.send_state_message(self._state_name, False))
+        self.present_word(word_list[-1], len(word_list) - 1, is_stim, is_practice,
+                          offscreen_callback=lambda *args: self.send_state_message(self._state_name, False))
 
         if self.config.doMathDistract and \
                 not self.config.continuousDistract and \
                 not self.config.fastConfig:
-            self._do_distractor(is_practice)
+            self.do_distractor(is_practice)
 
-        self._run_recall(state, is_practice)
+        self.run_recall(state, is_practice)
 
-    def _recall_orient_onscreen_callback(self, *args):
+    def recall_orient_onscreen_callback(self, *args):
         if not self._orient_sent:
             self.send_state_message('ORIENT', True)
             self._orient_sent = True
 
-    def _run_recall(self, state=None, is_practice=False):
-        """
-        Runs the recall period of a word list
-        :param state: State object
-        :param is_practice: True if list is practice list
+    def run_recall(self, state=None, is_practice=False):
+        """Runs the recall period of a word list
+
+        :param State state:
+        :param bool is_practice: True if list is practice list
         """
         self._orient_sent = False
 
         # Add a callback and get the reference
-        update_callback = self._recall_orient_onscreen_callback
+        update_callback = self.recall_orient_onscreen_callback
         self.video.addUpdateCallback(update_callback)
         cbref = self.video.update_callbacks[-1]
 
@@ -693,13 +693,13 @@ class FRExperimentRunner(object):
         self.log_message('%sREC_START' % prefix, timestamp)
         self.log_message('%sREC_END' % prefix, end_timestamp)
 
-    def _on_word_update(self, *args):
+    def on_word_update(self, *args):
         self.send_state_message('WORD', self._on_screen)
         if self._offscreen_callback and not self._on_screen:
             self._offscreen_callback()
         self._on_screen = not self._on_screen
 
-    def _present_word(self, word, word_i, is_stim=False, is_practice=False, offscreen_callback=None):
+    def present_word(self, word, word_i, is_stim=False, is_practice=False, offscreen_callback=None):
         """
         Presents a single word to the subject
         :param word: the wordpool object of the word to present
@@ -722,7 +722,7 @@ class FRExperimentRunner(object):
         # Present the word
         timestamp_on, timestamp_off = word_text.presentWithCallback(clk=self.clock,
                                                                     duration=self.config.wordDuration,
-                                                                    updateCallback=self._on_word_update)
+                                                                    updateCallback=self.on_word_update)
         # Log that we showed the word
         ram_control.send(WordMessage(word))
         if not is_practice:
@@ -735,9 +735,9 @@ class FRExperimentRunner(object):
             self.log_message(u'PRACTICE_WORD_OFF', timestamp_off)
 
         if self.config.continuousDistract:
-            self._do_distractor(is_practice)
+            self.do_distractor(is_practice)
 
-    def _do_distractor(self, is_practice=False):
+    def do_distractor(self, is_practice=False):
         """
         Presents the subject with a single distractor period
         """
