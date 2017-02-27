@@ -58,108 +58,66 @@ import random
 import os
 import sys
 import shutil
-import unicodedata
 import playIntro
 
+from ramcontrol import util
 from ramcontrol.extendedPyepl import *
 from ramcontrol.RAMControl import RAMControl
 from ramcontrol.messages import WordMessage
 
 ram_control = RAMControl.instance()
 
-# Set the current version
-# TODO: Update the version for System 2.0 pyepl changes
-MIN_PYEPL_VERSION = '1.0.0'
 
-
-class Utils:
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def shuffle_together(*lists):
-        zipped_lists = zip(*lists)
-        random.shuffle(zipped_lists)
-        return zip(*zipped_lists)
-
-    @staticmethod
-    def shuffle_inner_lists(lists):
-        """
-        Shuffles items within each list in place
-        :param lists: 2D list of size nLists x wordsPerList
-        """
-        for l in lists:
-            random.shuffle(l)
-
-    @staticmethod
-    def seed_rng(seed):
-        """
-        Seeds the random number generator with the input argument
-        :param seed: the element to seed Random with
-        """
-        random.seed(seed)
-
-    @staticmethod
-    def remove_accents(input_str):
-        nkfd_form = unicodedata.normalize('NFKD', input_str)
-        return u"".join([c for c in nkfd_form if not unicodedata.combining(c)])
-
-
-class FRExperiment:
+class FRExperiment(object):
     def __init__(self, exp, config, video, clock):
+        """Initialize the data for the experiment. Runs the prepare function,
+        sets up the experiment state
+
+        :param Experiment exp:
+        :param Config config:
+        :param VideoTrack video:
+
         """
-        Initialize the data for the experiment.
-        Runs the prepare function, sets up the experiment state
-        :param exp: Experiment object
-        :param config: Config object
-        :param video: VideoTrack object
-        """
-        self.exp, self.config = \
-            exp, config
+        self.exp = exp
+        self.config = config
         self.subject = exp.getOptions().get('subject')
         self.experiment_name = config.experiment
         self.video = video
         self.clock = clock
         self.wp = CustomTextPool(self.config.wp)
 
-    def _show_prepare_message(self):
-        """
-        Shows "Preparing trials in..."
-        """
+    def show_prepare_message(self):
+        """Shows 'Preparing trials in...'"""
+        replacements = {
+            'language': 'ENGLISH' if self.config.LANGUAGE == 'EN' else 'SPANISH',
+            'exp': self.experiment_name,
+            'subj': self.subject
+        }
+
         self.video.clear('black')
-        self.video.showCentered(Text(
-            """
-** PREPARING TRIALS IN %(language)s **
-If this is not correct,
-exit the experiment,
-then delete the subject folder in:
-/Users/exp/RAM_2.0/data/%(exp)s/%(subj)s
-        """ % {'language': 'ENGLISH' if self.config.LANGUAGE == 'EN' else 'SPANISH',
-               'exp': self.experiment_name,
-               'subj': self.subject}))
+        self.video.showCentered(
+            Text("** PREPARING TRIALS IN %(language)s **\n"
+                 "If this is not correct,\n"
+                 "exit the experiment,\n"
+                 "then delete the subject folder in:\n"
+                 "/Users/exp/RAM_2.0/data/%(exp)s/%(subj)s\n" % replacements))
         self.video.updateScreen()
         self.clock.delay(1000)
         self.clock.wait()
 
-    def _copy_word_pool(self):
-        """
-        Copies the word pool with and without accents to session folder
-        """
+    def copy_word_pool(self):
+        """Copies the word pool with and without accents to session folder."""
         sess_path = self.exp.session.fullPath()
+
         # With accents
         shutil.copy(self.config.wp, os.path.join(sess_path, '..'))
+
         # Without accents
-        no_accents_wp = [Utils.remove_accents(line.strip())
+        no_accents_wp = [util.remove_accents(line.strip())
                          for line in codecs.open(self.config.wp, 'r', 'utf-8').readlines()]
         open(os.path.join(sess_path,'..', self.config.noAcc_wp), 'w').write('\n'.join(no_accents_wp))
 
-    def _assert_good_list_params(self):
-        assert self.config.numTrials == (self.config.nBaselineTrials +
-                                         self.config.nStimTrials +
-                                         self.config.nControlTrials)
-
-    def _verify_files(self):
+    def verify_files(self):
         """
         Verify that all the files specified in the config are there so
         that there is no random failure in the middle of the experiment.
@@ -185,7 +143,7 @@ then delete the subject folder in:
                 print "\nERROR:\nPath/File does not exist: %s\n\nPlease verify the config.\n" % f
                 sys.exit(1)
 
-    def _get_stim_session_sources(self):
+    def get_stim_session_sources(self):
         """
         will return the filenames to be read for all sessions
         that are counterbalanced for stim positions
@@ -203,7 +161,7 @@ then delete the subject folder in:
                     for sess_num in sess_pair])
         return session_sources
 
-    def _get_nonstim_session_sources(self):
+    def get_nonstim_session_sources(self):
         """
         Gets the filenames to be read for all sessions to be
         used for the non-stim experiment
@@ -215,18 +173,18 @@ then delete the subject folder in:
                              '%d.txt' % sess_num)
                 for sess_num in session_sources]
 
-    def _get_session_sources(self):
+    def get_session_sources(self):
         """
         Gets the filenames to be read for all sessions to be
         used for any type of experiment
         :return: the filename for each session
         """
         if self.is_stim_experiment():
-            return self._get_stim_session_sources()
+            return self.get_stim_session_sources()
         else:
-            return self._get_nonstim_session_sources()
+            return self.get_nonstim_session_sources()
 
-    def _read_session_source(self, session_source_file):
+    def read_session_source(self, session_source_file):
         """
         Reads the words from a session source file into a 2D array
         :param session_source_file: the filename to be read
@@ -252,20 +210,20 @@ then delete the subject folder in:
         else:
             raise Exception('STIM TYPE:%s not recognized' % stim_type)
 
-    def _prepare_single_session_lists(self, session_source_file):
+    def prepare_single_session_lists(self, session_source_file):
         """
         Creates the lists for a single session
         :param session_source_file: File containing the lists that will be used in this session
                                     Lists should have stim lists first (if any) then nonstim
         :return:(session_lists, session_lists_is_stim)
         """
-        session_source_lists = self._read_session_source(session_source_file)
+        session_source_lists = self.read_session_source(session_source_file)
 
         # Shuffle within the lists
-        Utils.shuffle_inner_lists(session_source_lists)
+        util.shuffle_inner_lists(session_source_lists)
 
         # Split the lists by type
-        (stim_lists, nonstim_lists, ) = self._split_session_lists_by_stim_type(session_source_lists)
+        (stim_lists, nonstim_lists, ) = self.split_session_lists_by_stim_type(session_source_lists)
 
         # Shuffle within the list types so we can just pop later
         random.shuffle(stim_lists)
@@ -278,8 +236,7 @@ then delete the subject folder in:
             ordered_session_lists.append(nonstim_lists.pop())
             ordered_list_is_stim.append(False)
 
-        remaining_lists, remaining_is_stim = \
-            self._shuffle_stimulation(stim_lists, nonstim_lists)
+        remaining_lists, remaining_is_stim = self.shuffle_stim_trials(stim_lists, nonstim_lists)
 
         # Put the rest of the lists shuffled at the back
         ordered_session_lists.extend(remaining_lists)
@@ -288,11 +245,15 @@ then delete the subject folder in:
         return ordered_session_lists, ordered_list_is_stim
 
     @staticmethod
-    def _shuffle_stimulation(stim_lists, nonstim_lists):
-        """
-        pseudo-randomly assigns stim to trials such that each half of trials have an
-        equal number of stim and non-stim lists
-        :return: (shuffled_lists, shuffled_is_stim)
+    def shuffle_stim_trials(stim_lists, nonstim_lists):
+        """pseudo-randomly assigns stim to trials such that each half of trials
+        have an equal number of stim and non-stim lists
+
+        :param list stim_lists:
+        :param list nonstim_lists:
+
+        :return: shuffled_lists, shuffled_is_stim
+
         """
         stim_halves = (0, len(stim_lists)/2, len(stim_lists))
         nonstim_halves = (0, len(nonstim_lists)/2, len(nonstim_lists))
@@ -305,13 +266,12 @@ then delete the subject folder in:
                          nonstim_lists[nonstim_halves[i]:nonstim_halves[i+1]]
             half_stims = [True]*(stim_halves[i+1]-stim_halves[i]) + \
                          [False]*(nonstim_halves[i+1]-nonstim_halves[i])
-            half_lists, half_stims = \
-                Utils.shuffle_together(half_lists, half_stims)
+            half_lists, half_stims = util.shuffle_together(half_lists, half_stims)
             all_lists += half_lists
             all_stims += half_stims
         return all_lists, all_stims
 
-    def _split_session_lists_by_stim_type(self, session_lists):
+    def split_session_lists_by_stim_type(self, session_lists):
         """
         Splits lists into stim lists and nonstim lists
         NOTE: Assumes that the lists in the input are in the order:
@@ -323,7 +283,7 @@ then delete the subject folder in:
         nonstim_lists = session_lists[self.config.nStimTrials:]
         return stim_lists, nonstim_lists
 
-    def _prepare_practice_lists(self):
+    def prepare_practice_lists(self):
         """
         Prepares the words for the practice list
         """
@@ -337,122 +297,28 @@ then delete the subject folder in:
             practice_lists.append(this_list)
         return practice_lists
 
-    def _prepare_all_sessions_lists(self):
-        """
-        Prepares word lists for all sessions
+    def prepare_all_sessions_lists(self):
+        """Prepares word lists for all sessions.
+
         :return: (words_by_session, stim_lists_by_session)
         """
-        self._assert_good_list_params()
-        self._verify_files()
+        assert self.config.numTrials == (self.config.nBaselineTrials +
+                                         self.config.nStimTrials +
+                                         self.config.nControlTrials)
+        self.verify_files()
 
         words_by_session = []
         stim_lists_by_session = []
 
-        session_sources = self._get_session_sources()
+        session_sources = self.get_session_sources()
 
         for session_source in session_sources:
             (this_session_words, this_session_list_stim,) = \
-                self._prepare_single_session_lists(session_source)
+                self.prepare_single_session_lists(session_source)
             words_by_session.append(this_session_words)
             stim_lists_by_session.append(this_session_list_stim)
 
         return words_by_session, stim_lists_by_session
-
-    def _make_latex_preamble(self):
-        """
-        Makes the preamble for the LaTeX document
-        :return: a list with the preamble
-        """
-        preamble = [
-            '\\documentclass{article}',
-            '\\usepackage[margin=1in]{geometry}',
-            '\\usepackage{multirow}',
-            '\\usepackage{tabularx}',
-            '\\begin{document}',
-            '\\begin{center}',
-            '{\\large %s RAM\\_%s word lists}' %
-            (self.subject.replace('_', '\\_'), self.config.EXPERIMENT_NAME),
-            '\\end{center}',
-            ''
-        ]
-        return preamble
-
-    def make_stim_forms(self):
-        """
-        Generate and compile LaTeX code containing a table with each
-        trial's words spread between two rows. The header of each table
-        states the type of stimulation to be used in that trial.
-        """
-        exp = self.exp
-        config = self.config
-        state = exp.restoreState()
-        subj = self.subject
-
-        # Loop through sessions
-        for session_i in range(config.numSessions):
-
-            # Set the session, so the form goes in that folder
-            exp.setSession(session_i)
-            form_name = '%s_%s_s%d_wordlists' \
-                % (subj, config.EXPERIMENT_NAME, session_i)
-            stim_form = exp.session.createFile(form_name + '.tex')
-
-            # Sets up the initial part of the LaTeX document
-            preamble = self._make_latex_preamble()
-
-            document = []
-
-            trial_stim = state.sessionStim[session_i]
-            trial_words = state.sessionLists[session_i]
-
-            for (trial_i, (this_words, this_stim)) in enumerate(zip(trial_words, trial_stim)):
-
-                # insert vertical space
-                document.append('\\vspace{.1in}')
-
-                # Wordlist items are centered
-                centers = 'c ' * (config.listLen / 2)
-                document.append('\\hspace{.5in}\\begin{tabular}{r||' + centers + '}')
-                rowline1 = '\\multirow{2}{*}{List %d%s} & ' % (trial_i + 1, '' if trial_i + 1 >= 10 else '~~')
-                # Word list must be an even number for this to work predictably
-                for i in range(len(this_words) / 2):
-                    word = this_words[i]
-                    bold_word = ('\\textbf{%s}' % word.name) if this_stim else word.name
-                    rowline1 += (' & ' if i != 0 else '') + bold_word.encode('utf-8')
-                rowline1 += '\\\\'
-                document.append(rowline1)
-                rowline2 = '\\cline{2-7}\t\t\t& '
-                for i in range(len(this_words) / 2, len(this_words)):
-                    word = this_words[i]
-                    bold_word = ('\\textbf{%s}' % word.name) if this_stim else word.name
-                    rowline2 += (' & ' if i != len(this_words) / 2 else '') + bold_word.encode('utf-8')
-                rowline2 += '\\\\'
-                document.append(rowline2)
-                document.append('\\end{tabular}')
-                document.append('')
-
-            postamble = ['\\end{document}']
-
-            stim_form.write('\n'.join(preamble) + '\n' + '\n'.join(document) + '\n' + '\n'.join(postamble))
-
-            stim_form.close()
-
-            # Make the dvi document
-            os.system('cd %s; latex %s >> latexLog.txt' % (os.path.dirname(stim_form.name), stim_form.name))
-
-            # Convert the dvi to pdf
-            dvi_form = exp.session.createFile(form_name + '.dvi')
-            dvi_form.close()
-            os.system('cd %s; dvipdf %s >> latexLog.txt' % (os.path.dirname(dvi_form.name), dvi_form.name))
-
-            # Clean up unneccesary files
-            os.system('cd %s; rm %s.dvi; rm %s.log; rm %s.aux' % (os.path.dirname(dvi_form.name),
-                      form_name, form_name, form_name))
-
-    def _show_making_stim_forms(self):
-        self.video.clear('black')
-        self.video.showCentered(Text('Making word list files.\nThis may take a moment...'))
-        self.video.updateScreen()
 
     def is_session_started(self):
         """
@@ -471,7 +337,7 @@ then delete the subject folder in:
         else:
             return False
 
-    def _write_lst_files(self, session_lists, practice_lists):
+    def write_lst_files(self, session_lists, practice_lists):
         """
         Writes .lst files to the session folders
         :param session_lists: word lists for each list for each session
@@ -479,18 +345,18 @@ then delete the subject folder in:
         for session_i, (lists, practice_list) in enumerate(zip(session_lists, practice_lists)):
             # Set the session so it writes the files in the correct place
             self.exp.setSession(session_i)
-            self._write_single_lst_file(practice_list, 'p.lst')
+            self.write_single_lst_file(practice_list, 'p.lst')
             for list_i, words in enumerate(lists):
-                self._write_single_lst_file([word.name for word in words], '%d.lst' % list_i)
+                self.write_single_lst_file([word.name for word in words], '%d.lst' % list_i)
 
-    def _write_single_lst_file(self, words, label):
+    def write_single_lst_file(self, words, label):
         """
         Writes a single .lst file to the current session folder
         :param words: word list for that specific trial
         :param label: name of the file to be written in the session folder
         """
         list_file = self.exp.session.createFile(label)
-        list_file.write('\n'.join([Utils.remove_accents(word) for word in words]))
+        list_file.write('\n'.join([util.remove_accents(word) for word in words]))
         list_file.close()
 
     def init_experiment(self):
@@ -502,20 +368,20 @@ then delete the subject folder in:
         if self.is_experiment_started():
             raise Exception('Cannot prepare trials with an in progress session!')
 
-        Utils.seed_rng(self.exp.getOptions().get('subject'))
+        util.seed_rng(self.exp.getOptions().get('subject'))
 
-        self._copy_word_pool()
+        self.copy_word_pool()
 
         # Notify the user that we're preparing the trials
         # TODO: MOVE TO VIEW
-        self._show_prepare_message()
+        self.show_prepare_message()
 
         # Make the word lists
-        (session_lists, session_stim, ) = self._prepare_all_sessions_lists()
-        practice_lists = self._prepare_practice_lists()
+        session_lists, session_stim = self.prepare_all_sessions_lists()
+        practice_lists = self.prepare_practice_lists()
 
         # Write out the .lst files
-        self._write_lst_files(session_lists, practice_lists)
+        self.write_lst_files(session_lists, practice_lists)
 
         # Save out the state
         state = self.exp.restoreState()
@@ -530,9 +396,6 @@ then delete the subject folder in:
                            sessionNum=0,
                            language='spanish' if self.config.LANGUAGE == 'SP' else 'english',
                            LANG=self.config.LANGUAGE)
-
-        #self._show_making_stim_forms()
-        #self.make_stim_forms()
 
         self.exp.setSession(0)
         return self.exp.restoreState()
@@ -549,8 +412,7 @@ then delete the subject folder in:
                'UNKNOWN'
 
 
-class FRExperimentRunner:
-
+class FRExperimentRunner(object):
     def __init__(self, fr_experiment, clock, log, mathlog, video, audio):
         self.fr_experiment = fr_experiment
         self.config = fr_experiment.config
@@ -559,12 +421,14 @@ class FRExperimentRunner:
         self.mathlog = mathlog
         self.video = video
         self.audio = audio
-        self.start_beep = CustomBeep(self.config.startBeepFreq,
-                               self.config.startBeepDur,
-                               self.config.startBeepRiseFall)
-        self.stop_beep = CustomBeep(self.config.stopBeepFreq,
-                              self.config.stopBeepDur,
-                              self.config.stopBeepRiseFall)
+        self.start_beep = CustomBeep(
+            self.config.startBeepFreq,
+            self.config.startBeepDur,
+            self.config.startBeepRiseFall)
+        self.stop_beep = CustomBeep(
+            self.config.stopBeepFreq,
+            self.config.stopBeepDur,
+            self.config.stopBeepRiseFall)
         self._on_screen = True
 
     def log_message(self, message, time=None):
@@ -579,30 +443,16 @@ class FRExperimentRunner:
 
     @staticmethod
     def choose_yes_or_no(message):
-        """
-        Presents "message" to user
+        """Presents "message" to user
+
         :return: True if user pressed Y, False if N
+
         """
         bc = ButtonChooser(Key('Y'), Key('N'))
-        (_, button, _) = Text(message).present(bc=bc)
+        _, button, _ = Text(message).present(bc=bc)
         return button == Key('Y')
 
-    def _check_should_run_practice(self, state):
-        """
-        Checks if practice should be skipped
-        :param state:
-        :return:True if practice list should be run again
-        """
-        if state.practiceDone:
-            return self.choose_yes_or_no(
-                'Practice list already ran.\nPress Y to run again\nPress N to skip'
-            )
-        elif self.config.experiment == 'FR1':
-            return self.choose_yes_or_no(
-                'Would you like to run the practice list?\nPress Y to continue\nPress N to skip to first list'
-            )
-
-    def _check_sess_num(self, state):
+    def check_sess_num(self, state):
         """
         Prompts the user to check the session number
         :return: True if verified, False otherwise
@@ -615,7 +465,7 @@ class FRExperimentRunner:
              self.config.experiment,
              state.language))
 
-    def _send_state_message(self, state, value, meta=None):
+    def send_state_message(self, state, value, meta=None):
         """
         Sends message with STATE information to control pc
         :param state: 'PRACTICE', 'ENCODING', 'WORD'...
@@ -623,16 +473,16 @@ class FRExperimentRunner:
         """
         if state not in self.config.state_list:
             raise Exception('Improper state %s not in list of states' % state)
-        self._send_event('STATE', state=state, value=value, meta=meta)
+        self.send_event('STATE', state=state, value=value, meta=meta)
 
-    def _send_trial_message(self, trial_num):
+    def send_trial_message(self, trial_num):
         """
         Sends message with TRIAL information to control pc
         :param trial_num: 1, 2, ...
         """
-        self._send_event('TRIAL', trial=trial_num)
+        self.send_event('TRIAL', trial=trial_num)
 
-    def _send_event(self, type, *args, **kwargs):
+    def send_event(self, type, *args, **kwargs):
         """
         Sends an arbitrary event
         :param args: Inputs to RAMControl.sendEvent()
@@ -643,16 +493,16 @@ class FRExperimentRunner:
         if self.config.control_pc:
             ram_control.send(ram_control.build_message(type, *args, **kwargs))
 
-    def _show_message_from_file(self, filename):
+    def show_message_from_file(self, filename):
         """
         Opens a file with utf-8 encoding, displays the message, waits for any key
         :param filenamze: file to be read
         """
         waitForAnyKeyWithCallback(self.clock, Text(codecs.open(filename, encoding='utf-8').read()),
-                                  onscreenCallback=lambda: self._send_state_message('INSTRUCT', True),
-                                  offscreenCallback=lambda: self._send_state_message('INSTRUCT', False))
+                                  onscreenCallback=lambda: self.send_state_message('INSTRUCT', True),
+                                  offscreenCallback=lambda: self.send_state_message('INSTRUCT', False))
 
-    def _run_practice_list(self, state):
+    def run_practice_list(self, state):
         """
         Runs a practice list
         :param state: state object
@@ -661,18 +511,18 @@ class FRExperimentRunner:
         practice_list = state.practiceLists[state.sessionNum]
 
         # Run the list
-        self._send_state_message('PRACTICE', True)
+        self.send_state_message('PRACTICE', True)
         self.clock.tare()
         self.log_message('PRACTICE_TRIAL')
-        self._run_list(practice_list, is_practice=True)
-        self._send_state_message('PRACTICE', False)
+        self.run_list(practice_list, is_practice=True)
+        self.send_state_message('PRACTICE', False)
 
         # Log in state that list has been run
         state.practiceDone = True
         self.fr_experiment.exp.saveState(state)
 
         # Show a message afterwards
-        self._show_message_from_file(self.config.post_practiceList % state.LANG)
+        self.show_message_from_file(self.config.post_practiceList % state.LANG)
 
     def play_whole_movie(self, movie_file):
         """
@@ -686,26 +536,26 @@ class FRExperimentRunner:
         self.video.stopMovie(movie_object)
         self.video.unshow(movie_shown)
 
-    def _countdown(self):
+    def countdown(self):
         """
         Shows the 'countdown' video, centered.
         """
         self.video.clear('black')
-        self._send_state_message('COUNTDOWN', True)
+        self.send_state_message('COUNTDOWN', True)
         self.log_message('COUNTDOWN_START')
         self.play_whole_movie(self.config.countdownMovie)
-        self._send_state_message('COUNTDOWN', False)
+        self.send_state_message('COUNTDOWN', False)
         self.log_message('COUNTDOWN_END')
 
-    def _on_orient_update(self, *args):
+    def on_orient_update(self, *args):
         if self._on_screen:
-            self._send_state_message('ORIENT', True)
+            self.send_state_message('ORIENT', True)
         else:
-            self._send_state_message('ORIENT', False)
-            self._send_state_message(self._state_name, True)
+            self.send_state_message('ORIENT', False)
+            self.send_state_message(self._state_name, True)
         self._on_screen = not self._on_screen
 
-    def _run_list(self, word_list, state=None, is_stim=False, is_practice=False):
+    def run_list(self, word_list, state=None, is_stim=False, is_practice=False):
         """
         runs a single list of the experiment, presenting all of the words
         in word_list, and logging them as <list_type>_WORD
@@ -724,38 +574,38 @@ class FRExperimentRunner:
 
         if not self.config.fastConfig:
             if not is_practice:
-                self._send_trial_message(state.trialNum + 1)
+                self.send_trial_message(state.trialNum + 1)
                 trial_label = 'trial #%d' % (state.trialNum + 1)
             else:
-                self._send_trial_message(-1)
+                self.send_trial_message(-1)
                 trial_label = 'practice trial'
 
             timestamp = waitForAnyKeyWithCallback(self.clock,
                                                   Text('Press any key for %s' % trial_label),
-                                                  onscreenCallback=lambda: self._send_state_message('WAITING', True),
-                                                  offscreenCallback=lambda: self._send_state_message('WAITING', False))
+                                                  onscreenCallback=lambda: self.send_state_message('WAITING', True),
+                                                  offscreenCallback=lambda: self.send_state_message('WAITING', False))
         else:
             timestamp = self.clock
             if is_practice:
-                self._send_trial_message(-1)
+                self.send_trial_message(-1)
 
         if not is_practice:
             self.log_message('TRIAL\t%d\t%s' %
                              (state.trialNum + 1, 'STIM' if is_stim else 'NONSTIM'), timestamp)
 
         # Need a synchronization close to the start of the list
-        self._resynchronize(False)
+        self.resynchronize(False)
 
         # Countdown to start...
 
-        self._countdown()
+        self.countdown()
 
         # Display the "cross-hairs" and log
 
         self._state_name = 'STIM ENCODING' if is_stim else 'NON-STIM ENCODING'
 
         self._on_screen = True
-        on_update = self._on_orient_update
+        on_update = self.on_orient_update
         self.video.addUpdateCallback(on_update)
         cbref = self.video.update_callbacks[-1]
         timestamp_on, timestamp_off = flashStimulusWithOffscreenTimestamp(Text(self.config.orientText,
@@ -776,8 +626,8 @@ class FRExperimentRunner:
             self._present_word(word, word_i, is_stim, is_practice)
 
         # Last word has a callback so it has to be done separately
-        self._present_word(word_list[-1], len(word_list)-1, is_stim, is_practice,
-                           offscreen_callback=lambda *args: self._send_state_message(self._state_name, False))
+        self._present_word(word_list[-1], len(word_list) - 1, is_stim, is_practice,
+                           offscreen_callback=lambda *args: self.send_state_message(self._state_name, False))
 
         if self.config.doMathDistract and \
                 not self.config.continuousDistract and \
@@ -788,7 +638,7 @@ class FRExperimentRunner:
 
     def _recall_orient_onscreen_callback(self, *args):
         if not self._orient_sent:
-            self._send_state_message('ORIENT', True)
+            self.send_state_message('ORIENT', True)
             self._orient_sent = True
 
     def _run_recall(self, state=None, is_practice=False):
@@ -824,7 +674,7 @@ class FRExperimentRunner:
         self.video.unshow(start_text)
 
         def offscreen_callback(*args):
-            self._send_state_message('ORIENT', False)
+            self.send_state_message('ORIENT', False)
 
         self.video.addUpdateCallback(offscreen_callback)
         cbref = self.video.update_callbacks[-1]
@@ -840,18 +690,18 @@ class FRExperimentRunner:
         (rec, timestamp) = self.audio.record(self.config.recallDuration,
                                              label,
                                              t=self.clock,
-                                             startCallback=lambda *args: self._send_state_message('RETRIEVAL', True))
+                                             startCallback=lambda *args: self.send_state_message('RETRIEVAL', True))
 
         # Ending beep
         end_timestamp = self.stop_beep.present(self.clock,
-                                               onCallback=lambda *args: self._send_state_message('RETRIEVAL', False))
+                                               onCallback=lambda *args: self.send_state_message('RETRIEVAL', False))
 
         # Log start and end of recall
         self.log_message('%sREC_START' % prefix, timestamp)
         self.log_message('%sREC_END' % prefix, end_timestamp)
 
     def _on_word_update(self, *args):
-        self._send_state_message('WORD', self._on_screen)
+        self.send_state_message('WORD', self._on_screen)
         if self._offscreen_callback and not self._on_screen:
             self._offscreen_callback()
         self._on_screen = not self._on_screen
@@ -884,7 +734,7 @@ class FRExperimentRunner:
         ram_control.send(WordMessage(word))
         if not is_practice:
             self.log_message(u'WORD\t%s\t%s\t%d\t%s' %
-                             ('text', Utils.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
+                             ('text', util.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
                              timestamp_on)
             self.log_message(u'WORD_OFF', timestamp_off)
         else:
@@ -899,7 +749,7 @@ class FRExperimentRunner:
         Presents the subject with a single distractor period
         """
 
-        self._send_state_message('DISTRACT', True)
+        self.send_state_message('DISTRACT', True)
         self.log_message('DISTRACT_START')
 
         customMathDistract(clk=self.clock,
@@ -911,7 +761,7 @@ class FRExperimentRunner:
                            textSize=self.config.MATH_textSize,
                            callback=ram_control.send_math_message)
 
-        self._send_state_message('DISTRACT', False)
+        self.send_state_message('DISTRACT', False)
         self.log_message('DISTRACT_END')
 
     def should_skip_session(self, state):
@@ -942,7 +792,7 @@ class FRExperimentRunner:
     def resync_callback(self):
         flashStimulus(Text("Syncing..."), 500)
 
-    def _resynchronize(self, show_syncing):
+    def resynchronize(self, show_syncing):
         """
         Performs a resynchronization (christian's algorithm)
         (to be run before each list)
@@ -953,7 +803,7 @@ class FRExperimentRunner:
             else:
                 ram_control.align_clocks()
 
-    def _run_all_lists(self, state):
+    def run_all_lists(self, state):
         """
         Runs all of the lists in the given session, read from state
         :param state: State object
@@ -963,10 +813,10 @@ class FRExperimentRunner:
         while state.trialNum < len(lists):
             this_list = lists[state.trialNum]
             is_stim = is_stims[state.trialNum]
-            self._run_list([word.name for word in this_list], state, is_stim)
+            self.run_list([word.name for word in this_list], state, is_stim)
             state.trialNum += 1
             self.fr_experiment.exp.saveState(state)
-            self._resynchronize(True)
+            self.resynchronize(True)
 
     def run_session(self, keyboard):
         """
@@ -974,10 +824,10 @@ class FRExperimentRunner:
         """
         config = self.config
 
-        self._send_state_message('INSTRUCT', True)
+        self.send_state_message('INSTRUCT', True)
         self.log_message('INSTRUCT_VIDEO\tON')
         playIntro.playIntro(self.fr_experiment.exp, self.video, keyboard, True, config.LANGUAGE)
-        self._send_state_message('INSTRUCT', False)
+        self.send_state_message('INSTRUCT', False)
         self.log_message('INSTRUCT_VIDEO\tOFF')
 
         # set priority
@@ -1001,7 +851,7 @@ class FRExperimentRunner:
         # Clear the screen
         self.video.clear('black')
 
-        if not self._check_sess_num(state):
+        if not self.check_sess_num(state):
             exit(1)
 
         self.video.clear('black')
@@ -1014,25 +864,25 @@ class FRExperimentRunner:
                          str(self.config.VERSION_NUM)))
 
         # Reset the list number on the control PC to 0
-        self._send_trial_message(-1)
-        self._send_event('SESSION', session=state.sessionNum + 1, session_type=stim_type)
+        self.send_trial_message(-1)
+        self.send_event('SESSION', session=state.sessionNum + 1, session_type=stim_type)
 
-        self._send_state_message('MIC TEST', True)
+        self.send_state_message('MIC TEST', True)
         self.log_message('MIC_TEST')
         if not customMicTest(2000, 1.0):
             return
-        self._send_state_message('MIC TEST', False)
+        self.send_state_message('MIC TEST', False)
 
         if state.trialNum == 0:
-            self._resynchronize(False)
-            self._run_practice_list(state)
-            self._resynchronize(True)
+            self.resynchronize(False)
+            self.run_practice_list(state)
+            self.resynchronize(True)
             state = self.fr_experiment.exp.restoreState()
         
         self.fr_experiment.exp.saveState(state, session_started=True)
         state = self.fr_experiment.exp.restoreState()
 
-        self._run_all_lists(state)
+        self.run_all_lists(state)
 
         self.fr_experiment.exp.saveState(state,
                                          trialNum=0,
@@ -1042,7 +892,7 @@ class FRExperimentRunner:
 
         timestamp = waitForAnyKey(self.clock, Text('Thank you!\nYou have completed the session.'))
         self.log_message('SESS_END', timestamp)
-        self._send_event('EXIT')
+        self.send_event('EXIT')
 
         self.clock.wait()
 
@@ -1096,8 +946,6 @@ def run():
     """
     The main function that runs the experiment
     """
-    checkVersion(MIN_PYEPL_VERSION)
-
     # Start PyEPL, parse command line options
     exp = Experiment(use_eeg=False)
     exp.parseArgs()
