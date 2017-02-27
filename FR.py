@@ -58,12 +58,13 @@ import random
 import os
 import sys
 import shutil
-import playIntro
 
 from ramcontrol import util
 from ramcontrol.extendedPyepl import *
 from ramcontrol.RAMControl import RAMControl
 from ramcontrol.messages import WordMessage
+
+import playIntro
 
 ram_control = RAMControl.instance()
 
@@ -85,6 +86,27 @@ class FRExperiment(object):
         self.video = video
         self.clock = clock
         self.wp = CustomTextPool(self.config.wp)
+
+    @property
+    def session_started(self):
+        """Has the session been started previously?"""
+        return self.exp.restoreState().session_started
+
+    @property
+    def experiment_started(self):
+        """Has the experiment been started previously?"""
+        return self.exp.restoreState()
+
+    @property
+    def stim_experiment(self):
+        """Is this a stim session?"""
+        stim_type = self.config.stim_type
+        if stim_type == 'CLOSED_STIM':
+            return True
+        elif stim_type == 'NO_STIM':
+            return False
+        else:
+            raise Exception('STIM TYPE:%s not recognized' % stim_type)
 
     def show_prepare_message(self):
         """Shows 'Preparing trials in...'"""
@@ -179,7 +201,7 @@ class FRExperiment(object):
         used for any type of experiment
         :return: the filename for each session
         """
-        if self.is_stim_experiment():
+        if self.stim_experiment:
             return self.get_stim_session_sources()
         else:
             return self.get_nonstim_session_sources()
@@ -197,18 +219,6 @@ class FRExperiment(object):
 
         # Convert into TextPool items
         return [[self.wp.findBy(name=word) for word in trial] for trial in session_lists]
-
-    def is_stim_experiment(self):
-        """
-        :return: Whether or not this is a stim session
-        """
-        stim_type = self.config.stim_type
-        if stim_type == 'CLOSED_STIM':
-            return True
-        elif stim_type == 'NO_STIM':
-            return False
-        else:
-            raise Exception('STIM TYPE:%s not recognized' % stim_type)
 
     def prepare_single_session_lists(self, session_source_file):
         """
@@ -320,23 +330,6 @@ class FRExperiment(object):
 
         return words_by_session, stim_lists_by_session
 
-    def is_session_started(self):
-        """
-        :return: True if this session has previously been started
-        """
-        state = self.exp.restoreState()
-        return state.session_started
-
-    def is_experiment_started(self):
-        """
-        :return: True if experiment has previously been started
-        """
-        state = self.exp.restoreState()
-        if state:
-            return True
-        else:
-            return False
-
     def write_lst_files(self, session_lists, practice_lists):
         """
         Writes .lst files to the session folders
@@ -413,9 +406,9 @@ class FRExperiment(object):
 
 
 class FRExperimentRunner(object):
-    def __init__(self, fr_experiment, clock, log, mathlog, video, audio):
-        self.fr_experiment = fr_experiment
-        self.config = fr_experiment.config
+    def __init__(self, experiment, clock, log, mathlog, video, audio):
+        self.experiment = experiment
+        self.config = experiment.config
         self.clock = clock
         self.log = log
         self.mathlog = mathlog
@@ -457,7 +450,7 @@ class FRExperimentRunner(object):
         Prompts the user to check the session number
         :return: True if verified, False otherwise
         """
-        subj = self.fr_experiment.subject
+        subj = self.experiment.subject
         return self.choose_yes_or_no(
             'Running %s in session %d of %s\n(%s).\n Press Y to continue, N to quit' %
             (subj,
@@ -519,7 +512,7 @@ class FRExperimentRunner(object):
 
         # Log in state that list has been run
         state.practiceDone = True
-        self.fr_experiment.exp.saveState(state)
+        self.experiment.exp.saveState(state)
 
         # Show a message afterwards
         self.show_message_from_file(self.config.post_practiceList % state.LANG)
@@ -769,7 +762,7 @@ class FRExperimentRunner(object):
         Check if session should be skipped
         :return: True if session is skipped, False otherwise
         """
-        if self.fr_experiment.is_session_started():
+        if self.experiment.session_started():
             bc = ButtonChooser(Key('SPACE') & Key('RETURN'), Key('ESCAPE'))
             self.video.clear('black')
             (_, button, timestamp) = Text(
@@ -783,7 +776,7 @@ class FRExperimentRunner(object):
                 state.trialNum = 0
                 state.practiceDone = False
                 state.session_started = False
-                self.fr_experiment.exp.saveState(state)
+                self.experiment.exp.saveState(state)
                 waitForAnyKey(self.clock, Text('Session skipped\nRestart RAM_%s to run next session' %
                                                self.config.experiment))
                 return True
@@ -815,7 +808,7 @@ class FRExperimentRunner(object):
             is_stim = is_stims[state.trialNum]
             self.run_list([word.name for word in this_list], state, is_stim)
             state.trialNum += 1
-            self.fr_experiment.exp.saveState(state)
+            self.experiment.exp.saveState(state)
             self.resynchronize(True)
 
     def run_session(self, keyboard):
@@ -826,7 +819,7 @@ class FRExperimentRunner(object):
 
         self.send_state_message('INSTRUCT', True)
         self.log_message('INSTRUCT_VIDEO\tON')
-        playIntro.playIntro(self.fr_experiment.exp, self.video, keyboard, True, config.LANGUAGE)
+        playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
         self.send_state_message('INSTRUCT', False)
         self.log_message('INSTRUCT_VIDEO\tOFF')
 
@@ -836,14 +829,14 @@ class FRExperimentRunner(object):
             setRealtime(config.rtPeriod, config.rtComputation, config.rtConstraint)
 
         # Get the state object
-        state = self.fr_experiment.exp.restoreState()
+        state = self.experiment.exp.restoreState()
 
         # Return if out of sessions
         if self.is_out_of_sessions(state):
             return
 
         # Set the session appropriately for recording files
-        self.fr_experiment.exp.setSession(state.sessionNum)
+        self.experiment.exp.setSession(state.sessionNum)
 
         # Set the default font
         setDefaultFont(Font(self.config.defaultFont))
@@ -856,7 +849,7 @@ class FRExperimentRunner(object):
 
         self.video.clear('black')
 
-        stim_type = self.fr_experiment.get_stim_type()
+        stim_type = self.experiment.get_stim_type()
         stim_session_type = '%s_SESSION' % stim_type
         self.log_message('SESS_START\t%s\t%s\tv_%s' % (
                          state.sessionNum + 1,
@@ -877,18 +870,18 @@ class FRExperimentRunner(object):
             self.resynchronize(False)
             self.run_practice_list(state)
             self.resynchronize(True)
-            state = self.fr_experiment.exp.restoreState()
+            state = self.experiment.exp.restoreState()
         
-        self.fr_experiment.exp.saveState(state, session_started=True)
-        state = self.fr_experiment.exp.restoreState()
+        self.experiment.exp.saveState(state, session_started=True)
+        state = self.experiment.exp.restoreState()
 
         self.run_all_lists(state)
 
-        self.fr_experiment.exp.saveState(state,
-                                         trialNum=0,
-                                         session_started=False,
-                                         sessionNum=state.sessionNum+1,
-                                         practiceDone=False)
+        self.experiment.exp.saveState(state,
+                                      trialNum=0,
+                                      session_started=False,
+                                      sessionNum=state.sessionNum+1,
+                                      practiceDone=False)
 
         timestamp = waitForAnyKey(self.clock, Text('Thank you!\nYou have completed the session.'))
         self.log_message('SESS_END', timestamp)
@@ -972,11 +965,10 @@ def run():
     video = VideoTrack('video')
     clock = PresentationClock()
 
+    experiment = FRExperiment(exp, config, video, clock)
 
-    fr_experiment = FRExperiment(exp, config, video, clock)
-
-    if not fr_experiment.is_experiment_started():
-        state = fr_experiment.init_experiment()
+    if not experiment.experiment_started():
+        state = experiment.init_experiment()
     else:
         state = exp.restoreState()
 
@@ -985,7 +977,7 @@ def run():
     audio = CustomAudioTrack('audio')
     keyboard = KeyTrack('keyboard')
 
-    experiment_runner = FRExperimentRunner(fr_experiment,
+    experiment_runner = FRExperimentRunner(experiment,
                                            clock,
                                            log,
                                            mathlog,
