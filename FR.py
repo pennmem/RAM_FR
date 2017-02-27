@@ -60,9 +60,9 @@ import os
 import sys
 import shutil
 
-from ramcontrol import util
+from ramcontrol import wordlist
 from ramcontrol.extendedPyepl import *
-from ramcontrol.RAMControl import RAMControl
+from ramcontrol.control import RAMControl
 from ramcontrol.messages import WordMessage
 
 import playIntro
@@ -78,6 +78,7 @@ class FRExperiment(object):
         :param Experiment exp:
         :param Config config:
         :param VideoTrack video:
+        :param clock:
 
         """
         self.exp = exp
@@ -136,7 +137,7 @@ class FRExperiment(object):
         shutil.copy(self.config.wp, os.path.join(sess_path, '..'))
 
         # Without accents
-        no_accents_wp = [util.remove_accents(line.strip())
+        no_accents_wp = [wordlist.remove_accents(line.strip())
                          for line in codecs.open(self.config.wp, 'r', 'utf-8').readlines()]
         open(os.path.join(sess_path,'..', self.config.noAcc_wp), 'w').write('\n'.join(no_accents_wp))
 
@@ -153,13 +154,14 @@ class FRExperiment(object):
             sys.exit(1)
 
         # make the list of files from the config vars
-        files = (config.wp,
-                 config.defaultFont,
-                 config.pre_practiceList % config.LANGUAGE,
-                 config.post_practiceList % config.LANGUAGE,
-                 config.practice_wordList % config.LANGUAGE,
-                 config.wordList_dir % config.LANGUAGE
-                 )
+        files = (
+            config.wp,
+            config.defaultFont,
+            config.pre_practiceList % config.LANGUAGE,
+            config.post_practiceList % config.LANGUAGE,
+            config.practice_wordList % config.LANGUAGE,
+            config.wordList_dir % config.LANGUAGE
+        )
 
         for f in files:
             if not os.path.exists(f):
@@ -168,7 +170,7 @@ class FRExperiment(object):
 
     def get_stim_session_sources(self):
         """
-        will return the filenames to be read for all sessions
+        will return the filenames to be read for all os
         that are counterbalanced for stim positions
         :return: the filenames for each session
         """
@@ -231,7 +233,7 @@ class FRExperiment(object):
         session_source_lists = self.read_session_source(session_source_file)
 
         # Shuffle within the lists
-        util.shuffle_inner_lists(session_source_lists)
+        wordlist.shuffle_inner_lists(session_source_lists)
 
         # Split the lists by type
         (stim_lists, nonstim_lists, ) = self.split_session_lists_by_stim_type(session_source_lists)
@@ -277,7 +279,7 @@ class FRExperiment(object):
                          nonstim_lists[nonstim_halves[i]:nonstim_halves[i+1]]
             half_stims = [True]*(stim_halves[i+1]-stim_halves[i]) + \
                          [False]*(nonstim_halves[i+1]-nonstim_halves[i])
-            half_lists, half_stims = util.shuffle_together(half_lists, half_stims)
+            half_lists, half_stims = wordlist.shuffle_together(half_lists, half_stims)
             all_lists += half_lists
             all_stims += half_stims
         return all_lists, all_stims
@@ -350,7 +352,7 @@ class FRExperiment(object):
         :param label: name of the file to be written in the session folder
         """
         list_file = self.exp.session.createFile(label)
-        list_file.write('\n'.join([util.remove_accents(word) for word in words]))
+        list_file.write('\n'.join([wordlist.remove_accents(word) for word in words]))
         list_file.close()
 
     def init_experiment(self):
@@ -362,7 +364,7 @@ class FRExperiment(object):
         if self.experiment_started:
             raise Exception('Cannot prepare trials with an in progress session!')
 
-        util.seed_rng(self.exp.getOptions().get('subject'))
+        random.seed(self.exp.getOptions().get('subject'))
 
         self.copy_word_pool()
 
@@ -606,11 +608,10 @@ class FRExperimentRunner(object):
         on_update = self.on_orient_update
         self.video.addUpdateCallback(on_update)
         cbref = self.video.update_callbacks[-1]
-        timestamp_on, timestamp_off = flashStimulusWithOffscreenTimestamp(Text(self.config.orientText,
-                                                                               size=self.config.wordHeight),
-                                                                          clk=self.clock,
-                                                                          duration=self.config.wordDuration
-                                                                          )
+        timestamp_on, timestamp_off = flashStimulusWithOffscreenTimestamp(
+            Text(self.config.orientText, size=self.config.wordHeight),
+            clk=self.clock,
+            duration=self.config.wordDuration)
         self.log_message('%sORIENT' % list_type, timestamp_on)
         self.log_message('%sORIENT_OFF' % list_type, timestamp_off)
         # Delay before words
@@ -734,7 +735,7 @@ class FRExperimentRunner(object):
         ram_control.send(WordMessage(word))
         if not is_practice:
             self.log_message(u'WORD\t%s\t%s\t%d\t%s' %
-                             ('text', util.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
+                             ('text', wordlist.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
                              timestamp_on)
             self.log_message(u'WORD_OFF', timestamp_off)
         else:
@@ -745,9 +746,7 @@ class FRExperimentRunner(object):
             self.do_distractor(is_practice)
 
     def do_distractor(self, is_practice=False):
-        """
-        Presents the subject with a single distractor period
-        """
+        """Presents the subject with a single distractor period"""
 
         self.send_state_message('DISTRACT', True)
         self.log_message('DISTRACT_START')
@@ -765,18 +764,19 @@ class FRExperimentRunner(object):
         self.log_message('DISTRACT_END')
 
     def should_skip_session(self, state):
-        """
-        Check if session should be skipped
+        """Check if session should be skipped
+
         :return: True if session is skipped, False otherwise
+
         """
         if self.experiment.session_started:
             bc = ButtonChooser(Key('SPACE') & Key('RETURN'), Key('ESCAPE'))
             self.video.clear('black')
-            (_, button, timestamp) = Text(
+            _, button, timestamp = Text(
                 'Session %d was previously started\n' % (state.sessionNum + 1) +
                 'Press SPACE + RETURN to skip session\n' +
                 'Press ESCAPE to continue'
-                ).present(self.clock, bc=bc)
+            ).present(self.clock, bc=bc)
             if 'AND' in button.name:
                 self.log_message('SESSION_SKIPPED', timestamp)
                 state.sessionNum += 1
@@ -793,9 +793,9 @@ class FRExperimentRunner(object):
         flashStimulus(Text("Syncing..."), 500)
 
     def resynchronize(self, show_syncing):
-        """
-        Performs a resynchronization (christian's algorithm)
-        (to be run before each list)
+        """Performs Christian's algorithm to resync clocks (to be run before
+        each list).
+
         """
         if self.config.control_pc:
             if show_syncing:
