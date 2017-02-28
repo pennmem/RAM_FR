@@ -24,9 +24,6 @@ state_list = [
 
 require_labjack = False
 
-# THIS IS HOW THE REST OF THE PROGRAM KNOWS THIS IS A NONSTIM SESSION
-do_stim = False
-
 numSessions = 18
 
 nBaselineTrials = 0

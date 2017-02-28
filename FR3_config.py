@@ -1,7 +1,3 @@
-# THIS FILE SETS THE CONFIGURATIONS
-# FOR FR IN SYSTEM 2.0
-
-# ALL SYSTEM2.0 CONFIGURATION OPTIONS
 experiment = 'FR3'
 stim_type = 'CLOSED_STIM'
 version = '3.0.0'
@@ -23,8 +19,6 @@ state_list = [
  ]
 
 require_labjack = False
-
-do_stim = True
 
 numSessions = 10
 

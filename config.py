@@ -7,9 +7,6 @@ LANGUAGE = 'EN'
 # NEW IN VERSION 1.02
 require_labjack = False
 
-# Overridden in sconfig files
-do_stim = False
-
 # Control PC
 control_pc = True
 
