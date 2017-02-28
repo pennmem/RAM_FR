@@ -60,7 +60,7 @@ import os
 import sys
 import shutil
 
-from ramcontrol import wordlist
+from ramcontrol import wordpool
 from ramcontrol.extendedPyepl import *
 from ramcontrol.control import RAMControl
 from ramcontrol.messages import WordMessage
@@ -137,7 +137,7 @@ class FRExperiment(object):
         shutil.copy(self.config.wp, os.path.join(sess_path, '..'))
 
         # Without accents
-        no_accents_wp = [wordlist.remove_accents(line.strip())
+        no_accents_wp = [wordpool.remove_accents(line.strip())
                          for line in codecs.open(self.config.wp, 'r', 'utf-8').readlines()]
         open(os.path.join(sess_path,'..', self.config.noAcc_wp), 'w').write('\n'.join(no_accents_wp))
 
@@ -233,7 +233,7 @@ class FRExperiment(object):
         session_source_lists = self.read_session_source(session_source_file)
 
         # Shuffle within the lists
-        wordlist.shuffle_inner_lists(session_source_lists)
+        wordpool.shuffle_inner_lists(session_source_lists)
 
         # Split the lists by type
         (stim_lists, nonstim_lists, ) = self.split_session_lists_by_stim_type(session_source_lists)
@@ -279,7 +279,7 @@ class FRExperiment(object):
                          nonstim_lists[nonstim_halves[i]:nonstim_halves[i+1]]
             half_stims = [True]*(stim_halves[i+1]-stim_halves[i]) + \
                          [False]*(nonstim_halves[i+1]-nonstim_halves[i])
-            half_lists, half_stims = wordlist.shuffle_together(half_lists, half_stims)
+            half_lists, half_stims = wordpool.shuffle_together(half_lists, half_stims)
             all_lists += half_lists
             all_stims += half_stims
         return all_lists, all_stims
@@ -352,7 +352,7 @@ class FRExperiment(object):
         :param label: name of the file to be written in the session folder
         """
         list_file = self.exp.session.createFile(label)
-        list_file.write('\n'.join([wordlist.remove_accents(word) for word in words]))
+        list_file.write('\n'.join([wordpool.remove_accents(word) for word in words]))
         list_file.close()
 
     def init_experiment(self):
@@ -735,7 +735,7 @@ class FRExperimentRunner(object):
         ram_control.send(WordMessage(word))
         if not is_practice:
             self.log_message(u'WORD\t%s\t%s\t%d\t%s' %
-                             ('text', wordlist.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
+                             ('text', wordpool.remove_accents(word), word_i, 'STIM' if is_stim else 'NO_STIM'),
                              timestamp_on)
             self.log_message(u'WORD_OFF', timestamp_off)
         else:
