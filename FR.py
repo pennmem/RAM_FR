@@ -514,7 +514,7 @@ class FRExperimentRunner(object):
         self.send_state_message('PRACTICE', True)
         self.clock.tare()
         self.log_message('PRACTICE_TRIAL')
-        self.run_list(practice_list, is_practice=True)
+        self.run_encoding(practice_list, is_practice=True)
         self.send_state_message('PRACTICE', False)
 
         # Log in state that list has been run
@@ -537,9 +537,7 @@ class FRExperimentRunner(object):
         self.video.unshow(movie_shown)
 
     def countdown(self):
-        """
-        Shows the 'countdown' video, centered.
-        """
+        """Shows the 'countdown' video, centered."""
         self.video.clear('black')
         self.send_state_message('COUNTDOWN', True)
         self.log_message('COUNTDOWN_START')
@@ -555,15 +553,17 @@ class FRExperimentRunner(object):
             self.send_state_message(self._state_name, True)
         self._on_screen = not self._on_screen
 
-    def run_list(self, word_list, state=None, is_stim=False, is_practice=False):
-        """
-        runs a single list of the experiment, presenting all of the words
-        in word_list, and logging them as <list_type>_WORD
+    def run_encoding(self, word_list, state=None, is_stim=False,
+                     is_practice=False):
+        """Runs a single list of the experiment (encoding phase), presenting
+        all of the words in word_list, and logging them as <list_type>_WORD
+
         :param word_list: words to present
+        :param state:
         :param is_stim: whether this list is a stim list
         :param is_practice: (optional) assumes False. True if on practice list
-        """
 
+        """
         if not state and not is_practice:
             raise Exception('State not provided on non-practice list')
 
@@ -580,10 +580,11 @@ class FRExperimentRunner(object):
                 self.send_trial_message(-1)
                 trial_label = 'practice trial'
 
-            timestamp = waitForAnyKeyWithCallback(self.clock,
-                                                  Text('Press any key for %s' % trial_label),
-                                                  onscreenCallback=lambda: self.send_state_message('WAITING', True),
-                                                  offscreenCallback=lambda: self.send_state_message('WAITING', False))
+            timestamp = waitForAnyKeyWithCallback(
+                self.clock,
+                Text('Press any key for %s' % trial_label),
+                onscreenCallback=lambda: self.send_state_message('WAITING', True),
+                offscreenCallback=lambda: self.send_state_message('WAITING', False))
         else:
             timestamp = self.clock
             if is_practice:
@@ -813,7 +814,7 @@ class FRExperimentRunner(object):
         while state.trialNum < len(lists):
             this_list = lists[state.trialNum]
             is_stim = is_stims[state.trialNum]
-            self.run_list([word.name for word in this_list], state, is_stim)
+            self.run_encoding([word.name for word in this_list], state, is_stim)
             state.trialNum += 1
             self.experiment.exp.saveState(state)
             self.resynchronize(True)
@@ -861,7 +862,7 @@ class FRExperimentRunner(object):
         self.log_message('SESS_START\t%s\t%s\tv_%s' % (
                          state.sessionNum + 1,
                          stim_session_type,
-                         str(self.config.VERSION_NUM)))
+                         str(self.config.version)))
 
         # Reset the list number on the control PC to 0
         self.send_trial_message(-1)
