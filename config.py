@@ -2,13 +2,10 @@
 # (and ONLY the following line)
 # TO SWITCH LANGUAGE BETWEEN ENGLISH ('EN')
 # AND SPANISH ('SP')
-LANGUAGE='EN'
-
-EXPERIMENT_NAME = 'FR1'
-VERSION_NUM = '3.00'
+LANGUAGE = 'EN'
 
 # NEW IN VERSION 1.02
-require_labjack = True
+require_labjack = False
 
 # Overridden in sconfig files
 do_stim = False
@@ -116,11 +113,11 @@ if fastConfig:
     ISI = 10
     Jitter = 0
 
-    PauseBeforeWords = 10;
-    JitterBeforeWords = 10;
+    PauseBeforeWords = 10
+    JitterBeforeWords = 10
 
-    wordDuration = 20;
-    recallDuration = 10;
+    wordDuration = 20
+    recallDuration = 10
 
-    MATH_minDuration_Practice = 10;
-    MATH_minDuration = 10;
+    MATH_minDuration_Practice = 10
+    MATH_minDuration = 10
