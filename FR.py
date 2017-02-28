@@ -60,12 +60,10 @@ import os
 import sys
 import shutil
 
-from ramcontrol import wordlist
+from ramcontrol import wordlist, epl
 from ramcontrol.extendedPyepl import *
 from ramcontrol.control import RAMControl
 from ramcontrol.messages import WordMessage
-
-import playIntro
 
 ram_control = RAMControl.instance()
 
@@ -600,7 +598,7 @@ class FRExperimentRunner(object):
 
         self.countdown()
 
-        # Display the "cross-hairs" and log
+        # Displayo the "cross-hairs" and log
 
         self._state_name = 'STIM ENCODING' if is_stim else 'NON-STIM ENCODING'
 
@@ -826,7 +824,7 @@ class FRExperimentRunner(object):
 
         self.send_state_message('INSTRUCT', True)
         self.log_message('INSTRUCT_VIDEO\tON')
-        playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
+        epl.play_intro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
         self.send_state_message('INSTRUCT', False)
         self.log_message('INSTRUCT_VIDEO\tOFF')
 
@@ -878,7 +876,7 @@ class FRExperimentRunner(object):
             self.run_practice_list(state)
             self.resynchronize(True)
             state = self.experiment.exp.restoreState()
-        
+
         self.experiment.exp.saveState(state, session_started=True)
         state = self.experiment.exp.restoreState()
 
