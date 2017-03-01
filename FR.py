@@ -54,6 +54,7 @@
 from pyepl import timing
 
 import json
+from contextlib import contextmanager
 
 from ramcontrol import wordpool
 from ramcontrol.extendedPyepl import *
@@ -160,6 +161,15 @@ class FRExperimentRunner(object):
              self.config.experiment,
              state.language))
 
+    @contextmanager
+    def state_context(self, state):
+        """Context manager to log and send state messages."""
+        self.log_message(state + "_START")
+        self.send_state_message(state, True)
+        yield
+        self.send_state_message(state, False)
+        self.log_message(state + "_END")
+
     def send_state_message(self, state, value, meta=None):
         """
         Sends message with STATE information to control pc
@@ -206,11 +216,10 @@ class FRExperimentRunner(object):
         practice_list = state.practiceLists[state.sessionNum]
 
         # Run the list
-        self.send_state_message('PRACTICE', True)
-        self.clock.tare()
         self.log_message('PRACTICE_TRIAL')
-        self.run_encoding(practice_list, is_practice=True)
-        self.send_state_message('PRACTICE', False)
+        with self.state_context("PRACTICE"):
+            self.clock.tare()
+            self.run_encoding(practice_list, is_practice=True)
 
         # Log in state that list has been run
         state.practiceDone = True
@@ -234,11 +243,8 @@ class FRExperimentRunner(object):
     def countdown(self):
         """Shows the 'countdown' video, centered."""
         self.video.clear('black')
-        self.send_state_message('COUNTDOWN', True)
-        self.log_message('COUNTDOWN_START')
-        self.play_whole_movie(self.config.countdownMovie)
-        self.send_state_message('COUNTDOWN', False)
-        self.log_message('COUNTDOWN_END')
+        with self.state_context("COUNTDOWN"):
+            self.play_whole_movie(self.config.countdownMovie)
 
     def on_orient_update(self, *args):
         if self._on_screen:
@@ -443,21 +449,15 @@ class FRExperimentRunner(object):
 
     def do_distractor(self):
         """Presents the subject with a single distractor period."""
-
-        self.send_state_message('DISTRACT', True)
-        self.log_message('DISTRACT_START')
-
-        customMathDistract(clk=self.clock,
-                           mathlog=self.mathlog,
-                           numVars=self.config.MATH_numVars,
-                           maxProbs=self.config.MATH_maxProbs,
-                           plusAndMinus=self.config.MATH_plusAndMinus,
-                           minDuration=self.config.MATH_minDuration,
-                           textSize=self.config.MATH_textSize,
-                           callback=ram_control.send_math_message)
-
-        self.send_state_message('DISTRACT', False)
-        self.log_message('DISTRACT_END')
+        with self.state_context("DISTRACT"):
+            customMathDistract(clk=self.clock,
+                               mathlog=self.mathlog,
+                               numVars=self.config.MATH_numVars,
+                               maxProbs=self.config.MATH_maxProbs,
+                               plusAndMinus=self.config.MATH_plusAndMinus,
+                               minDuration=self.config.MATH_minDuration,
+                               textSize=self.config.MATH_textSize,
+                               callback=ram_control.send_math_message)
 
     def should_skip_session(self, state):
         """Check if session should be skipped
@@ -515,11 +515,8 @@ class FRExperimentRunner(object):
         """Runs a full session of free recall."""
         config = self.config
 
-        self.send_state_message('INSTRUCT', True)
-        self.log_message('INSTRUCT_VIDEO\tON')
-        playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
-        self.send_state_message('INSTRUCT', False)
-        self.log_message('INSTRUCT_VIDEO\tOFF')
+        with self.state_context("INSTRUCT"):
+            playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
 
         # set priority
         # TODO: What does this do?
@@ -558,11 +555,9 @@ class FRExperimentRunner(object):
         self.send_trial_message(-1)
         self.send_event('SESSION', session=state.sessionNum + 1, session_type=stim_type)
 
-        self.send_state_message('MIC TEST', True)
-        self.log_message('MIC_TEST')
-        if not customMicTest(2000, 1.0):
-            return
-        self.send_state_message('MIC TEST', False)
+        with self.state_context("MIC_TEST"):
+            if not customMicTest(2000, 1.0):
+                return
 
         if state.trialNum == 0:
             self.resynchronize(False)
