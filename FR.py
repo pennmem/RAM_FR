@@ -54,11 +54,7 @@
 from pyepl import timing
 
 import json
-import codecs  # FOR READING UNICODE
-import random
-import os
-import sys
-import shutil
+from contextlib import contextmanager
 
 from ramcontrol import wordpool
 from ramcontrol.extendedPyepl import *
@@ -110,267 +106,14 @@ class FRExperiment(object):
         else:
             raise Exception('STIM TYPE:%s not recognized' % stim_type)
 
-    def show_prepare_message(self):
-        """Shows 'Preparing trials in...'"""
-        replacements = {
-            'language': 'ENGLISH' if self.config.LANGUAGE == 'EN' else 'SPANISH',
-            'exp': self.experiment_name,
-            'subj': self.subject
-        }
-
-        self.video.clear('black')
-        self.video.showCentered(
-            Text("** PREPARING TRIALS IN %(language)s **\n"
-                 "If this is not correct,\n"
-                 "exit the experiment,\n"
-                 "then delete the subject folder in:\n"
-                 "/Users/exp/RAM_2.0/data/%(exp)s/%(subj)s\n" % replacements))
-        self.video.updateScreen()
-        self.clock.delay(1000)
-        self.clock.wait()
-
-    def copy_word_pool(self):
-        """Copies the word pool with and without accents to session folder."""
-        sess_path = self.exp.session.fullPath()
-
-        # With accents
-        shutil.copy(self.config.wp, os.path.join(sess_path, '..'))
-
-        # Without accents
-        no_accents_wp = [wordpool.remove_accents(line.strip())
-                         for line in codecs.open(self.config.wp, 'r', 'utf-8').readlines()]
-        open(os.path.join(sess_path,'..', self.config.noAcc_wp), 'w').write('\n'.join(no_accents_wp))
-
-    def verify_files(self):
-        """
-        Verify that all the files specified in the config are there so
-        that there is no random failure in the middle of the experiment.
-
-        This will call sys.exit(1) if any of the files are missing.
-        """
-        config = self.config
-        if config.LANGUAGE != 'EN' and config.LANGUAGE != 'SP':
-            print('\nERROR:\nLanguage must be set to "EN" or "SP"')
-            sys.exit(1)
-
-        # make the list of files from the config vars
-        files = (
-            config.wp,
-            config.defaultFont,
-            config.pre_practiceList % config.LANGUAGE,
-            config.post_practiceList % config.LANGUAGE,
-            config.practice_wordList % config.LANGUAGE,
-            config.wordList_dir % config.LANGUAGE
-        )
-
-        for f in files:
-            if not os.path.exists(f):
-                print("\nERROR:\nPath/File does not exist: %s\n\nPlease verify the config.\n" % f)
-                sys.exit(1)
-
-    def get_stim_session_sources(self):
-        """
-        will return the filenames to be read for all os
-        that are counterbalanced for stim positions
-        :return: the filenames for each session
-        """
-        sess_numbers = [[i, i+1] for i in range(1, self.config.numSessions+1, 2)]
-        print(sess_numbers)
-        random.shuffle(sess_numbers)
-        session_sources = []
-        for sess_pair in sess_numbers:
-            random.shuffle(sess_pair)
-            session_sources.extend(
-                [os.path.join(self.config.wordList_dir % self.config.LANGUAGE,
-                              '%d.txt' % sess_num)
-                    for sess_num in sess_pair])
-        return session_sources
-
-    def get_nonstim_session_sources(self):
-        """
-        Gets the filenames to be read for all sessions to be
-        used for the non-stim experiment
-        :return: the filename for each session
-        """
-        session_sources = range(1, self.config.numSessions+1)
-        random.shuffle(session_sources)
-        return [os.path.join(self.config.wordList_dir % self.config.LANGUAGE,
-                             '%d.txt' % sess_num)
-                for sess_num in session_sources]
-
-    def get_session_sources(self):
-        """
-        Gets the filenames to be read for all sessions to be
-        used for any type of experiment
-        :return: the filename for each session
-        """
-        if self.stim_experiment:
-            return self.get_stim_session_sources()
-        else:
-            return self.get_nonstim_session_sources()
-
-    def read_session_source(self, session_source_file):
-        """
-        Reads the words from a session source file into a 2D array
-        :param session_source_file: the filename to be read
-        :return: 2D array of words
-        """
-        session_lists = [x.strip().split() for x in codecs.open(session_source_file, encoding='utf-8').readlines()]
-
-        # Check to make sure they're all the right length
-        assert all([len(this_list) == self.config.listLen for this_list in session_lists])
-
-        # Convert into TextPool items
-        return [[self.wp.findBy(name=word) for word in trial] for trial in session_lists]
-
-    def prepare_single_session_lists(self, session_source_file):
-        """
-        Creates the lists for a single session
-        :param session_source_file: File containing the lists that will be used in this session
-                                    Lists should have stim lists first (if any) then nonstim
-        :return:(session_lists, session_lists_is_stim)
-        """
-        session_source_lists = self.read_session_source(session_source_file)
-
-        # Shuffle within the lists
-        wordpool.shuffle_inner_lists(session_source_lists)
-
-        # Split the lists by type
-        (stim_lists, nonstim_lists, ) = self.split_session_lists_by_stim_type(session_source_lists)
-
-        # Shuffle within the list types so we can just pop later
-        random.shuffle(stim_lists)
-        random.shuffle(nonstim_lists)
-
-        # Put the baseline trials at the front
-        ordered_session_lists = []
-        ordered_list_is_stim = []
-        for _ in range(self.config.nBaselineTrials):
-            ordered_session_lists.append(nonstim_lists.pop())
-            ordered_list_is_stim.append(False)
-
-        remaining_lists, remaining_is_stim = self.shuffle_stim_trials(stim_lists, nonstim_lists)
-
-        # Put the rest of the lists shuffled at the back
-        ordered_session_lists.extend(remaining_lists)
-        ordered_list_is_stim.extend(remaining_is_stim)
-
-        return ordered_session_lists, ordered_list_is_stim
-
-    @staticmethod
-    def shuffle_stim_trials(stim_lists, nonstim_lists):
-        """pseudo-randomly assigns stim to trials such that each half of trials
-        have an equal number of stim and non-stim lists
-
-        :param list stim_lists:
-        :param list nonstim_lists:
-
-        :return: shuffled_lists, shuffled_is_stim
-
-        """
-        stim_halves = (0, len(stim_lists)/2, len(stim_lists))
-        nonstim_halves = (0, len(nonstim_lists)/2, len(nonstim_lists))
-
-        all_lists = []
-        all_stims = []
-
-        for i in range(2):
-            half_lists = stim_lists[stim_halves[i]:stim_halves[i+1]] + \
-                         nonstim_lists[nonstim_halves[i]:nonstim_halves[i+1]]
-            half_stims = [True]*(stim_halves[i+1]-stim_halves[i]) + \
-                         [False]*(nonstim_halves[i+1]-nonstim_halves[i])
-            half_lists, half_stims = wordpool.shuffle_together(half_lists, half_stims)
-            all_lists += half_lists
-            all_stims += half_stims
-        return all_lists, all_stims
-
-    def split_session_lists_by_stim_type(self, session_lists):
-        """
-        Splits lists into stim lists and nonstim lists
-        NOTE: Assumes that the lists in the input are in the order:
-            [*<stim_lists>, *<nonstim_lists>]
-        :param session_lists: 2D matrix of size nLists x wordsPerList of all possible lists
-        :return: (stim_lists, nonstim_lists)
-        """
-        stim_lists = session_lists[:self.config.nStimTrials]
-        nonstim_lists = session_lists[self.config.nStimTrials:]
-        return stim_lists, nonstim_lists
-
-    def prepare_practice_lists(self):
-        """
-        Prepares the words for the practice list
-        """
-        practice_words = [line.strip() for line in
-                          codecs.open(self.config.practice_wordList % self.config.LANGUAGE,
-                                      encoding='utf-8').readlines()]
-        practice_lists = []
-        for _ in range(self.config.numSessions):
-            this_list = practice_words[:]
-            random.shuffle(this_list)
-            practice_lists.append(this_list)
-        return practice_lists
-
-    def prepare_all_sessions_lists(self):
-        """Prepares word lists for all sessions.
-
-        :return: (words_by_session, stim_lists_by_session)
-        """
-        assert self.config.numTrials == (self.config.nBaselineTrials +
-                                         self.config.nStimTrials +
-                                         self.config.nControlTrials)
-        self.verify_files()
-
-        words_by_session = []
-        stim_lists_by_session = []
-
-        session_sources = self.get_session_sources()
-
-        for session_source in session_sources:
-            (this_session_words, this_session_list_stim,) = \
-                self.prepare_single_session_lists(session_source)
-            words_by_session.append(this_session_words)
-            stim_lists_by_session.append(this_session_list_stim)
-
-        return words_by_session, stim_lists_by_session
-
-    def write_lst_files(self, session_lists, practice_lists):
-        """
-        Writes .lst files to the session folders
-        :param session_lists: word lists for each list for each session
-        """
-        for session_i, (lists, practice_list) in enumerate(zip(session_lists, practice_lists)):
-            # Set the session so it writes the files in the correct place
-            self.exp.setSession(session_i)
-            self.write_single_lst_file(practice_list, 'p.lst')
-            for list_i, words in enumerate(lists):
-                self.write_single_lst_file([word.name for word in words], '%d.lst' % list_i)
-
-    def write_single_lst_file(self, words, label):
-        """
-        Writes a single .lst file to the current session folder
-        :param words: word list for that specific trial
-        :param label: name of the file to be written in the session folder
-        """
-        list_file = self.exp.session.createFile(label)
-        list_file.write('\n'.join([wordpool.remove_accents(word) for word in words]))
-        list_file.close()
-
     def init_experiment(self):
         """
         Initializes the experiment, sets up the state so that lists can be run
         :return: state object
         """
-
-        if self.experiment_started:
-            raise Exception('Cannot prepare trials with an in progress session!')
-
         random.seed(self.exp.getOptions().get('subject'))
 
         self.copy_word_pool()
-
-        # Notify the user that we're preparing the trials
-        # TODO: MOVE TO VIEW
-        self.show_prepare_message()
 
         # Make the word lists
         session_lists, session_stim = self.prepare_all_sessions_lists()
@@ -395,17 +138,6 @@ class FRExperiment(object):
 
         self.exp.setSession(0)
         return self.exp.restoreState()
-
-    def get_stim_type(self):
-        """
-        Gets the type of stimulation for the given session
-        :return: type of stimulation
-        """
-        return 'NO_RECORD' if self.config.experiment == 'FR0' else\
-               'NO_STIM' if self.config.experiment == 'FR1' else\
-               'OPEN_STIM' if self.config.experiment == 'FR2' else\
-               'CLOSED_STIM' if self.config.experiment == 'FR3' else\
-               'UNKNOWN'
 
 
 class FRExperimentRunner(object):
@@ -465,6 +197,15 @@ class FRExperimentRunner(object):
              self.config.experiment,
              state.language))
 
+    @contextmanager
+    def state_context(self, state):
+        """Context manager to log and send state messages."""
+        self.log_message(state + "_START")
+        self.send_state_message(state, True)
+        yield
+        self.send_state_message(state, False)
+        self.log_message(state + "_END")
+
     def send_state_message(self, state, value, meta=None):
         """
         Sends message with STATE information to control pc
@@ -511,11 +252,10 @@ class FRExperimentRunner(object):
         practice_list = state.practiceLists[state.sessionNum]
 
         # Run the list
-        self.send_state_message('PRACTICE', True)
-        self.clock.tare()
         self.log_message('PRACTICE_TRIAL')
-        self.run_encoding(practice_list, is_practice=True)
-        self.send_state_message('PRACTICE', False)
+        with self.state_context("PRACTICE"):
+            self.clock.tare()
+            self.run_encoding(practice_list, is_practice=True)
 
         # Log in state that list has been run
         state.practiceDone = True
@@ -539,11 +279,8 @@ class FRExperimentRunner(object):
     def countdown(self):
         """Shows the 'countdown' video, centered."""
         self.video.clear('black')
-        self.send_state_message('COUNTDOWN', True)
-        self.log_message('COUNTDOWN_START')
-        self.play_whole_movie(self.config.countdownMovie)
-        self.send_state_message('COUNTDOWN', False)
-        self.log_message('COUNTDOWN_END')
+        with self.state_context("COUNTDOWN"):
+            self.play_whole_movie(self.config.countdownMovie)
 
     def on_orient_update(self, *args):
         if self._on_screen:
@@ -746,23 +483,17 @@ class FRExperimentRunner(object):
         if self.config.continuousDistract:
             self.do_distractor(is_practice)
 
-    def do_distractor(self, is_practice=False):
-        """Presents the subject with a single distractor period"""
-
-        self.send_state_message('DISTRACT', True)
-        self.log_message('DISTRACT_START')
-
-        customMathDistract(clk=self.clock,
-                           mathlog=self.mathlog,
-                           numVars=self.config.MATH_numVars,
-                           maxProbs=self.config.MATH_maxProbs,
-                           plusAndMinus=self.config.MATH_plusAndMinus,
-                           minDuration=self.config.MATH_minDuration,
-                           textSize=self.config.MATH_textSize,
-                           callback=ram_control.send_math_message)
-
-        self.send_state_message('DISTRACT', False)
-        self.log_message('DISTRACT_END')
+    def do_distractor(self):
+        """Presents the subject with a single distractor period."""
+        with self.state_context("DISTRACT"):
+            customMathDistract(clk=self.clock,
+                               mathlog=self.mathlog,
+                               numVars=self.config.MATH_numVars,
+                               maxProbs=self.config.MATH_maxProbs,
+                               plusAndMinus=self.config.MATH_plusAndMinus,
+                               minDuration=self.config.MATH_minDuration,
+                               textSize=self.config.MATH_textSize,
+                               callback=ram_control.send_math_message)
 
     def should_skip_session(self, state):
         """Check if session should be skipped
@@ -819,17 +550,19 @@ class FRExperimentRunner(object):
             self.experiment.exp.saveState(state)
             self.resynchronize(True)
 
+    def run_recognition(self, state):
+        """Run recognition subtask (a.k.a. 'REC1').
+
+        """
+
     def run_session(self, keyboard):
         """
         Runs a full session of free recall
         """
         config = self.config
 
-        self.send_state_message('INSTRUCT', True)
-        self.log_message('INSTRUCT_VIDEO\tON')
-        playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
-        self.send_state_message('INSTRUCT', False)
-        self.log_message('INSTRUCT_VIDEO\tOFF')
+        with self.state_context("INSTRUCT"):
+            playIntro.playIntro(self.experiment.exp, self.video, keyboard, True, config.LANGUAGE)
 
         # set priority
         # TODO: What does this do?
@@ -868,11 +601,9 @@ class FRExperimentRunner(object):
         self.send_trial_message(-1)
         self.send_event('SESSION', session=state.sessionNum + 1, session_type=stim_type)
 
-        self.send_state_message('MIC TEST', True)
-        self.log_message('MIC_TEST')
-        if not customMicTest(2000, 1.0):
-            return
-        self.send_state_message('MIC TEST', False)
+        with self.state_context("MIC_TEST"):
+            if not customMicTest(2000, 1.0):
+                return
 
         if state.trialNum == 0:
             self.resynchronize(False)
